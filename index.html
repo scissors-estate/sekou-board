@@ -32,7 +32,7 @@
 <style>
 :root{
   --bg:#f4f5f7; --panel:#fff; --line:#e3e5e8; --text:#1e1f21; --sub:#6d6e6f; --accent:#4573d2; --navy:#1e2a44;
-  --clean:#4573d2; --sekou:#f06a38; --teiki:#2a9d6f; --check:#8e5bd8; --other:#8a8f98;
+  --clean:#4573d2; --sekou:#f06a38; --teiki:#2a9d6f; --check:#8e5bd8; --other:#8a8f98; --naikin:#0e9aa7;
   --free:#1f3b70; --inb:#c9d3e3; --today:#fff6d6; --warn:#d1373b; --ok:#2a9d6f;
   --side-bg:#0c2837; --side-hl:#85c6e6; --side-on:rgba(133,198,230,.18);   /* 左カラム：緑寄りの青（2026-11-13） */
   --side:248px;
@@ -361,7 +361,7 @@ main{flex:1;min-width:0}
 .cards.over,.cell.over{background:rgba(69,115,210,.12);border-radius:8px}
 .card{background:#fff;border-radius:8px;padding:7px 9px 7px 12px;box-shadow:0 1px 2px rgba(0,0,0,.12);position:relative;cursor:grab;font-size:14px}
 .card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:8px 0 0 8px;background:var(--k)}
-.card.k-clean{--k:var(--clean)} .card.k-sekou{--k:var(--sekou)} .card.k-teiki{--k:var(--teiki)} .card.k-check{--k:var(--check)} .card.k-other{--k:var(--other)}
+.card.k-clean{--k:var(--clean)} .card.k-sekou{--k:var(--sekou)} .card.k-teiki{--k:var(--teiki)} .card.k-check{--k:var(--check)} .card.k-other{--k:var(--other)} .card.k-naikin{--k:var(--naikin)}
 .card.ref{background:#f7f8fa;box-shadow:none;border:1px dashed #cdd3dd;cursor:default}
 .card.done{opacity:.55} .card.done .t{text-decoration:line-through}
 .card .kind{font-size:10px;color:var(--k);font-weight:600}
@@ -573,7 +573,7 @@ body.actbg .toolbar{border-bottom-color:#eceef1}
 .cards.over,.cell.over{background:#eef1f6}
 .card{border:1px solid #e3e5e8;box-shadow:none}
 .card:hover{border-color:#c9ced6}
-.card .kind,.card.k-clean .kind,.card.k-sekou .kind,.card.k-teiki .kind,.card.k-check .kind,.card.k-other .kind{color:#6b7280}
+.card .kind,.card.k-clean .kind,.card.k-sekou .kind,.card.k-teiki .kind,.card.k-check .kind,.card.k-other .kind,.card.k-naikin .kind{color:#6b7280}
 .card.ref{background:#fafafa}
 .av.pc{color:#fff;font-weight:500}
 /* 行動管理のカード：名前は正円のアイコン風 */
@@ -669,7 +669,7 @@ details.sug{background:#f9fafb;border:1px solid #eceef1}
 .drow .tk .none{color:#b0b5bf;font-size:13px;align-self:center}
 .dcard{flex:0 0 136px;max-width:136px;background:#fff;border:1px solid #e3e5e8;border-radius:7px;padding:4px 6px 4px 9px;position:relative;font-size:13px;cursor:pointer;line-height:1.3}
 .dcard:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:8px 0 0 8px;background:var(--k)}
-.dcard.k-clean{--k:var(--clean)} .dcard.k-sekou{--k:var(--sekou)} .dcard.k-teiki{--k:var(--teiki)} .dcard.k-check{--k:var(--check)} .dcard.k-other{--k:var(--other)}
+.dcard.k-clean{--k:var(--clean)} .dcard.k-sekou{--k:var(--sekou)} .dcard.k-teiki{--k:var(--teiki)} .dcard.k-check{--k:var(--check)} .dcard.k-other{--k:var(--other)} .dcard.k-naikin{--k:var(--naikin)}
 .dcard .hd{display:flex;align-items:flex-start;gap:5px}
 .dcard .kind{font-size:11px;color:var(--k);font-weight:600}
 .dcard .pri{margin-left:auto;flex:none;font-size:10.5px;font-weight:600;padding:0 5px;border-radius:8px;border:1px solid transparent;line-height:16px}
@@ -948,7 +948,7 @@ const CLEAN_STAFF = ['石井','アン','倉田','前','渋谷','島田'];  // �
 const SEASON_END = '2026-12-31';
 const DAYS_BEFORE = 3, DAYS_AFTER = 20;
 const STORE = 'integrated-board-proto-v1';
-const KIND = {clean:'清掃', sekou:'施工・修繕', teiki:'定期メンテ', check:'空室チェック', other:'その他'};
+const KIND = {clean:'清掃', sekou:'施工・修繕', teiki:'定期メンテ', check:'空室チェック', naikin:'内勤', other:'その他'};
 
 /* ===================== メニュー構成 ===================== */
 // 清掃ログ・施工管理は今のメニューをそのまま下層に並べる。need=ログインが必要で試作では形だけ
@@ -1035,7 +1035,7 @@ function setLang(l){
 /* ===================== 状態 ===================== */
 const ui = { app:'home', page:'dash', tab:'', mode:'day', who:'', day:today(), ref:false, fac:'', q:'', vm:today().slice(0,7), vfac:'', vleg:true, v0:false, vng:false,
   open:{home:true, sekou:true, act:true},
-  kinds:{clean:true,sekou:true,teiki:true,check:true,other:true},
+  kinds:{clean:true,sekou:true,teiki:true,check:true,naikin:true,other:true},
   rep:{fac:'', room:'', when:'before', chk:{}, trash:0, towel:0, lost:false, lostText:'', extra:[], dmg:false, dmgText:'', other:''} };
 let D = null, V = null, RANGE = [], ROOMMAP = {};
 
@@ -1223,7 +1223,8 @@ const itemRecs = (f, r, it) => { const sibs = roomItems(f, r); return recs().fil
 function facTaskCards(rm, key, pend){
   const items = roomItems(rm.facility, rm.room); if(!items) return null;
   return items.map(it=>{
-    const p = pend.find(t=>t.tid===it.id) || pend.find(t=>!t.tid && matchItem(t.label, it, items)), last = itemRecs(rm.facility, rm.room, it)[0];
+    const fq = tFreq(it);   // 頻度を決めたタスクは、その頻度だけで期限を見る（施工管理の定期メンテの期限は重ねない）
+    const p = pend.find(t=>t.tid===it.id) || pend.find(t=>!t.tid && !(fq && t.kind==='teiki') && matchItem(t.label, it, items)), last = itemRecs(rm.facility, rm.room, it)[0];
     return Object.assign({id:it.id, f:rm.facility, r:rm.room, regId:'', kind:'other', label:it.full, short:it.short, item:it, due:'', dueText:'', over:false, who:[], src:'作業リスト', pri:3},
       p ? {regId:p.regId, kind:p.kind, due:p.due, dueText:p.dueText, over:p.over, st:p.st, who:p.who, pri:p.pri, auto:p.auto, caution:p.caution, avoidIn:p.avoidIn, sched: p.local ? {id:p.id, date:p.due, who:p.who} : null} : {},
       {last: [last ? last.doneDate : '', acLast(rm.facility, rm.room, it)].sort().pop()});
@@ -1606,7 +1607,7 @@ function actMe(tb){
   const cards = boardCards().filter(visible); ui.who = keep;
   return isSP() ? mobileHtml(cards, true) : boardHtml(cards, true);
 }
-const ORDER = c => (c.ref?20:0) + (c.done?10:0) + ({sekou:0,teiki:1,check:2,clean:3,other:4}[c.kind]);
+const ORDER = c => (c.ref?20:0) + (c.done?10:0) + ({sekou:0,teiki:1,check:2,clean:3,naikin:4,other:5}[c.kind] || 0);
 // 日付の横に出す「清掃：5　パート：2」。清掃＝空室フィードの清掃予定の件数（本番を読むだけ）
 // パートの人数は読める元データがまだないので、数字を押して手で入れる（この端末に保存：store.part）
 const cleanCount = day => Object.keys(ROOMMAP).filter(tag=>/[Cc]/.test(feedChar(tag, day, 'clean'))).length;
@@ -1633,7 +1634,6 @@ function boardHtml(cards, meOnly){
       <div class="colhead"><div class="d">${md(day)}<span class="w ${w===0?'sun':w===6?'sat':''}">${WD[w]}${day===t?'・今日':''}</span>${dayNums(day)}</div></div>
       <div class="cards" data-drop="${day}">${list.map(cardHtml).join('')}</div>
       <button class="addbtn" onclick="openNew('${day}')">＋ タスクを追加</button>
-      ${sugHtml(day)}
     </section>`;}).join('')}</div>`;
 }
 // スマホ：全日を縦に並べ、上下スクロールだけで日を移動する。上の日付の帯は「今見ている日」に合わせて動き、押すとその日へ飛ぶ
@@ -1647,7 +1647,6 @@ function mobileHtml(cards, meOnly){
       return `<section class="mdsec ${d===t?'today':''} ${d<t?'past':''}" data-mday="${d}">
         <div class="mdh"><span class="d">${md(d)}</span><span class="w ${w===0?'sun':w===6?'sat':''}">${WD[w]}</span>${d===t?'<span class="tg">今日</span>':''}${dayNums(d)}<span class="n">${cnt[d]?cnt[d]+'件':''}</span></div>
         <div class="mlist">${list.map(cardHtml).join('')}<button class="addbtn madd" onclick="openNew('${d}')">＋ タスクを追加</button></div>
-        ${sugHtml(d)?`<div class="msug">${sugHtml(d)}</div>`:''}
       </section>`;}).join('')}</div>`;
 }
 const spOffset = () => { const top = document.querySelector('.top'), st = document.getElementById('mstrip');
