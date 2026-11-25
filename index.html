@@ -807,6 +807,22 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .tpop .rpph span{width:64px;height:64px;border-radius:6px;overflow:hidden;background:#e6e9ee;display:block}
 .tpop .rpph img{width:100%;height:100%;object-fit:cover;display:block}
 .tpop input[type=file]{padding:6px;font-size:13px}
+/* 報告：エアコンの台ごと */
+#rp_units{display:flex;flex-direction:column;gap:8px}
+#rp_units .ublk{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+#rp_units .uh{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+#rp_units .uh b{flex:none;width:20px;height:20px;border-radius:50%;background:#e4e7ec;color:#4b5563;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+#rp_units .uh small{font-weight:400;color:var(--sub)}
+#rp_units .uh em{margin-left:auto;font-style:normal;font-size:12px;font-weight:600;border-radius:9px;padding:0 8px}
+#rp_units .uh em.ok{background:#ecf7f0;color:#226b49}#rp_units .uh em.ng{background:#eceef1;color:#4b5563}
+#rp_units .ucs{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+#rp_units .uc{flex:1;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 4px;font-size:14px;color:var(--text)}
+#rp_units .uc.sm{flex:none;padding:4px 10px;font-size:12.5px}
+#rp_units .uc.on{background:var(--navy);border-color:var(--navy);color:#fff}
+#rp_units .uc.on.c-ok{background:#2a9d6f;border-color:#2a9d6f}#rp_units .uc.on.c-ng{background:#6b7280;border-color:#6b7280}
+#rp_units input{margin-top:6px}
+#rp_units .uw{font-size:12px;color:var(--sub);margin-top:4px}
+#rp_units .lnk{border:0;background:none;color:var(--accent);font-size:12.5px;padding:4px 0 0}
 /* ===== 作業リスト：略称カード（改行なし）・ON の印・カードのポップアップ ===== */
 .dcard.ab .t,.dcol .dcard.ab .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal}
 .dcard.on,.dcard.on.s-done,.dcard.on.s-part,.dcard.on.s-none,.dcard.od,.dcard.od.s-done,.dcard.od.s-part,.dcard.od.s-none{background:#fdecec;border-color:#f3b8b8;color:#b42318}
@@ -1999,10 +2015,14 @@ function repOpen(ctx){
   if(ctx.tid && !it) return;
   ui.rep = Object.assign({place: it ? it.place : '', work: it ? it.work : ctx.work, title: it ? it.short : ctx.work, full: it ? it.full : ctx.work}, ctx);
   ui.repPhotos = []; ui.repFiles = []; ui.repBusy = false;
+  // エアコン：施工管理の定期メンテ（エアコン洗浄）があれば、今の施工管理と同じく台ごとに「今回どうしたか」を入れる
+  const acg = it && /エアコン/.test(it.work) ? acRegular(ctx.f, ctx.r) : null;
+  ui.rep.acg = acg; ui.rep.units = acg ? acUnits(ctx.f, ctx.r) : null;
   const mem = members(), me = ctx.who || store.me || '', where = ctx.f ? rmName(ctx.f, ctx.r) : '';
   document.getElementById('modal').innerHTML = `<div class="mask" onclick="if(event.target===this)tpClose()"><div class="modal tpop">
     <h3>${T('報告','Report')}：${esc(where)}　${esc(ui.rep.title)}</h3>
     <dl class="tpfull"><dt>${T('作業箇所','Place')}</dt><dd>${esc(ui.rep.place || T('（指定なし）','—'))}</dd><dt>${T('内容','Work')}</dt><dd>${esc(ui.rep.work)}</dd></dl>
+    ${acg?`<label>${T('台ごとに「今回どうしたか」','Each unit')}</label><div id="rp_units"></div>`:''}
     <div class="two"><div><label>${T('やった日','Date')}</label><input type="date" id="rp_date" value="${today()}" max="${today()}"></div>
       <div><label>${T('担当','Who')}</label><select id="rp_who"><option value="">${T('（未選択）','(none)')}</option>${mem.map(m=>`<option ${m===me?'selected':''}>${esc(m)}</option>`).join('')}</select></div></div>
     <label>${T('メモ','Memo')}</label><textarea id="rp_note" rows="3" placeholder="${T('例：一面だけ張り替え／次回は材料の追加が必要','Memo')}"></textarea>
@@ -2011,6 +2031,42 @@ function repOpen(ctx){
     <div class="err" id="rp_err"></div>
     <div class="note">${ctx.f && ctx.r ? T('報告は施工管理（本番のスプレッドシート）に保存され、全員の「前回」と履歴に出ます。取り消し・修正は今の施工管理のページで行ってください。','Saved to the live records.') : T('施設・部屋のないタスクなので、報告はこの端末の中だけに保存します。','Saved on this device only.')}${T('保存すると Chatwork に貼る文面が出ます（自動では送りません）。','')}</div>
     <div class="tpbar"><button class="btn" onclick="repBack()">${T('戻る','Back')}</button><button class="btn primary" id="rp_save" onclick="repSave()">${T('報告を保存','Save report')}</button></div></div></div>`;
+  repUnits();
+}
+/* ---- エアコンの報告：台ごと（今の施工管理ページの「完了にする」と同じ中身を completeRegular で送る）
+   台を足す・メーカーを変えるのは今の施工管理ページで行う（ここでは今ある台の結果だけ入れる） ---- */
+const acRegular = (f, r) => (D.regular||[]).find(g=>!g.stopped && !g._ed && /エアコン/.test(g.task||'') && !/(\d+)\s*(週|日)|毎週/.test(g.freq||'') && regTargets(g).some(x=>x.facility===f && x.room===r)) || null;
+const acUnits = (f, r) => (D.aircon||[]).filter(a=>a.facility===f && a.room===r && !a.stopped).map(u=>({id:u.id, place:u.place, maker:u.maker||'', status:u.status||'洗える', reason:u.reason||'', lastDate:u.lastDate||'', lastResult:u.lastResult||'', lastNote:u.lastNote||'', result:'', why:''}));
+const AC_SKIP_WHY = ['設置して半年未満','汚れなし'];
+const acResult = u => u.result || (u.status==='洗えない' ? '洗えない' : '');
+function repUnits(){
+  const el = document.getElementById('rp_units'), us = ui.rep && ui.rep.units; if(!el || !us) return;
+  if(!us.length){ el.innerHTML = `<div class="note" style="margin-top:0">${T('この部屋はエアコンの台がまだ登録されていません。今の施工管理ページの定期メンテ（エアコン洗浄）で台を入れてから報告してください。','No units registered for this room.')}</div>`; return; }
+  el.innerHTML = us.map((u, i)=>{
+    const head = `<div class="uh"><b>${i+1}</b><span>${esc(u.place||'エアコン')}</span>${u.maker?`<small>${esc(u.maker)}</small>`:''}`;
+    if(!u.result && !u.redo && isYmd(u.lastDate) && u.lastDate>=AC_SINCE && u.lastResult)
+      return `<div class="ublk">${head}<em class="ok">${md(u.lastDate)} ${esc(u.lastResult)}</em></div><button class="lnk" onclick="repUnit(${i},'redo')">${T('今回もやった・やり直す','Redo')}</button></div>`;
+    if(u.status==='洗えない' && !u.result && !u.redo)
+      return `<div class="ublk">${head}<em class="ng">${T('洗えない','Cannot wash')}</em></div>${u.reason?`<div class="uw">${esc(u.reason)}</div>`:''}<button class="lnk" onclick="repUnit(${i},'redo')">${T('洗えるか見直す','Review')}</button></div>`;
+    const chip = v => `<button class="uc ${u.result===v?'on':''} c-${v==='洗った'?'ok':v==='洗浄不要'?'nn':'ng'}" onclick="repUnit(${i},${jsq(v)})">${v}</button>`;
+    return `<div class="ublk">${head}</div><div class="ucs">${chip('洗った')}${chip('洗浄不要')}${chip('洗えない')}</div>
+      ${u.result==='洗浄不要'?`<div class="ucs">${AC_SKIP_WHY.map(w=>`<button class="uc sm ${u.why===w?'on':''}" onclick="ui.rep.units[${i}].why=${jsq(w)};repUnits()">${w}</button>`).join('')}</div><input value="${esc(u.why)}" placeholder="${T('理由','Reason')}" oninput="ui.rep.units[${i}].why=this.value">`:''}
+      ${u.result==='洗えない'?`<input value="${esc(u.why||u.reason)}" placeholder="${T('理由（お掃除機能付きで分解できない など）','Reason')}" oninput="ui.rep.units[${i}].why=this.value">`:''}
+      ${!u.result?`<div class="uw">${T('選ばなければ「まだ」のまま','Leave blank if not done')}</div>`:''}</div>`; }).join('');
+}
+function repUnit(i, v){ const u = ui.rep.units[i]; if(v==='redo') u.redo = true; else { u.result = u.result===v ? '' : v; u.why = ''; } repUnits(); }
+// 「ダイニング 洗った／寝室1 洗浄不要（…）」→ 記録の備考の1行目（今の施工管理と同じ書き方）
+function acSummary(units, date){
+  const groups = [], map = {};
+  units.forEach(u=>{
+    const sameDay = !u.result && date && u.lastDate===date && u.lastResult;
+    const res = sameDay ? u.lastResult : acResult(u); if(!res) return;
+    const why = sameDay ? (res==='洗浄不要' ? (u.lastNote||'') : '') : res==='洗った' ? '' : res==='洗えない' ? (u.why||u.reason||'') : (u.why||'');
+    const k = res+'|'+why; if(!map[k]){ map[k] = {res, why, places:[]}; groups.push(map[k]); }
+    map[k].places.push((u.place||'エアコン').trim());
+  });
+  const rank = {'洗った':0,'洗浄不要':1,'洗えない':2};
+  return groups.sort((a,b)=>rank[a.res]-rank[b.res]).map(g=>g.places.join('・')+' '+g.res+(g.why?'（'+g.why+'）':'')).join('／');
 }
 function repBack(){ const c = ui.rep || {}; if(c.tid && !c.cardId) openItemPop(c.f, c.r, c.tid); else if(c.cardId) openCard(c.cardId); else tpClose(); }
 // 写真は小さくして（長辺 480px）この端末に保存する
@@ -2065,6 +2121,8 @@ async function repSave(){
   const toGas = !!(c.f && c.r);   // 施設・部屋のある報告は本番（施工管理）に保存。ないもの（買い出しなど）はこの端末だけ
   if(toGas){
     if(!person){ err.textContent = T('担当を選んでください','Choose who did it'); return; }
+    if(c.units && !c.units.length){ err.textContent = T('エアコンの台が登録されていないので保存できません（今の施工管理ページで台を入れてください）','No units registered'); return; }
+    if(c.units && !c.units.some(u=>u.result)){ err.textContent = T('台ごとの「今回」を1つ以上選んでください','Choose a result for at least one unit'); return; }
     ui.repBusy = true; const btn = document.getElementById('rp_save'); if(btn){ btn.disabled = true; btn.textContent = T('保存中…','Saving…'); }
     try {
       // 押し直しても二重に登録されないよう、送った写真と記録の番号はこの報告のあいだ覚えておく
@@ -2073,7 +2131,17 @@ async function repSave(){
         const j = await gasPost({action:'upload', kind:'photo', name:(f.name||'photo').replace(/\.\w+$/,'')+'.jpg', mime:'image/jpeg', data: await bigImg(f)}); ids.push(j.fileId); }
       err.textContent = '';
       const it = c.tid && (roomItems(c.f, c.r)||[]).find(i=>i.id===c.tid), g = repRegular(c, it);
-      const j = g ? await gasPost({action:'completeRegular', regularId:g.id, facility:c.f, room:c.r, date:d, by:person, note, photos:ids.join(','), editId:'', reqId:c.reqId})
+      let j;
+      if(c.units){
+        // エアコン：台ごとの結果を送る。同じ日の記録がもうあれば、その記録に追記する（今の施工管理と同じ）
+        const units = c.units.map(u=>({id:u.id||'', place:(u.place||'').trim()||'エアコン', maker:(u.maker||'').trim(), status:u.status, reason:u.reason||'', result:u.result,
+          why: u.result==='洗えない' ? (u.why||u.reason||'') : u.result==='洗浄不要' ? (u.why||'') : ''}));
+        const r0 = recs().find(v=>v.regularId===c.acg.id && v.facility===c.f && v.room===c.r && v.doneDate===d);
+        const old = r0 ? String(r0.note||'').split('\n') : [], rest = (old.length && /(洗った|洗浄不要|洗えない)/.test(old[0]) ? old.slice(1) : old).join('\n').trim();
+        const note2 = [acSummary(c.units, d), rest, note].filter(Boolean).join('\n'), photos = (r0 ? photoIds(r0.photos) : []).concat(ids).join(',');
+        j = await gasPost({action:'completeRegular', regularId:c.acg.id, facility:c.f, room:c.r, date:d, by:person, note:note2, photos, editId: r0 ? r0.id : '', units, reqId:c.reqId});
+        x.full = c.acg.task; x.note = note2;
+      } else j = g ? await gasPost({action:'completeRegular', regularId:g.id, facility:c.f, room:c.r, date:d, by:person, note, photos:ids.join(','), editId:'', reqId:c.reqId})
                   : await gasPost({action:'addRecord', record:{type:'修繕', facility:c.f, room:c.r, task:c.full, doneDate:d, planStart:'', planEnd:'', person, note, photos:ids.join(','), projectId:''}, reqId:c.reqId});
       if(j.data){ D = j.data; D0 = null; buildRoomMap(); applyEdits(); }
       x.photos = ids.slice(); x.gas = true;
