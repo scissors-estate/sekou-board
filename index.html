@@ -883,7 +883,11 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .tpop .tpsl .av{font-size:11px;height:18px;padding:0 6px;border-radius:9px;color:#fff;display:inline-flex;align-items:center}
 .vlist .hpl{display:flex;flex-wrap:wrap;gap:2px 10px;margin:0 0 2px 72px;font-size:12px}
 .vlist .hpl a{color:var(--accent)}
-@media(max-width:820px){ .dcard.ab .mc{font-size:10px;padding:0 3px;line-height:15px} .dcard.ab .hd{gap:3px} .tpop .tpadd{flex-wrap:wrap} .tpop .tpadd>div{flex:1 1 40%} .tpop .tpadd .btn{flex:1 1 100%} }
+@media(max-width:820px){ .dcard.ab .mc{font-size:10px;padding:0 3px;line-height:15px} .dcard.ab .hd{gap:3px} .tpop .tpadd{flex-direction:column;align-items:stretch} .tpop .tpadd>div{flex:none;width:100%} .tpop .tpadd .btn{flex:none;width:100%} }
+/* iPhone は日付の入力欄が枠より広がって隣と重なるので、幅を枠に収める */
+.modal input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:36px;background:#fff;text-align:left}
+.modal .two>*{min-width:0}
+.tpop .tpbar.flat{position:static;margin:16px 0 0;padding:0;border-top:0;border-radius:0}
 @media(max-width:820px){ .dfh{padding:12px 10px;gap:8px} .dfh .cnt i{margin-left:3px} }
 /* ===== 部屋×タスク：施設を横に並べ、開くと横に広がる ===== */
 .dfstrip{display:flex;gap:10px;overflow-x:auto;align-items:stretch;padding-bottom:10px}
@@ -944,7 +948,8 @@ const GAS_URL  = 'https://script.google.com/macros/s/AKfycbwzQ2O7fgTieU4BfparunR
 const VAC_FEED = 'https://minpaku-estate-default-rtdb.asia-southeast1.firebasedatabase.app/cleaning_calendar'; // 空室フィード
 // 建物名 → 施設名（施工管理の VAC_FAC と同じ）。ここに無い建物は「外部物件」（例：Clean）
 const VAC_FAC = {'エルスタンザ亀有':'亀有','SCハイツ':'SCハイツ','シャムロック':'青戸','Belmont':'梅島','両国塚田ビル':'両国','パークサイド西新宿':'西新宿','鐘ヶ淵':'墨田A','立石A':'立石A'};
-const CLEAN_STAFF = ['石井','アン','倉田','前','渋谷','島田'];  // 清掃ログの担当者（2026-11-12 の画面より）
+const CLEAN_STAFF = [];   // クリーナー・チェッカーは 2026-11-25 にいったんメンバーから外した（清掃ログを載せるときに戻す）
+const HIDDEN_STAFF = ['石井','アン','倉田','前','渋谷','島田'];   // 外した人（チェッカー＝石井／クリーナー＝アン・倉田・前・渋谷・島田）。施工の記録に名前があってもメンバーには出さない
 const SEASON_END = '2026-12-31';
 const DAYS_BEFORE = 3, DAYS_AFTER = 20;
 const STORE = 'integrated-board-proto-v1';
@@ -1297,7 +1302,7 @@ function sysPerm(tb){
     ${permPeople().map(n=>{ const p = permOf(n), r = roleOf(n);
       return `<tr><td><span class="pn">${esc(n)}</span>${r?`<em class="role ${r}">${T(...ROLE_NM[r])}</em>`:`<em class="role none">${T('施工のみ','Construction')}</em>`}</td>${PERM_APPS.map(a=>`<td><input type="checkbox" ${p[a[0]]?'checked':''} onchange="permSet(${jsq(n)},'${a[0]}',this.checked)" aria-label="${esc(n)} ${a[1]}"></td>`).join('')}</tr>`; }).join('')}
     </tbody></table></div>
-    <div class="muted">${T('初期値：管理者＝全部／マネージャー＝設定以外／チェッカー・クリーナー＝ホームのみ（清掃ログは次回の改修で追加）／施工のメンバー＝施工管理・行動管理（役割は清掃ログより。後半のクリーナーは未確認）','Defaults: Admin = all / Manager = all but Settings / Checker / Cleaner = Cleaning Log only / Construction members = Construction + Tasks')}</div></div>`;
+    <div class="muted">${T('初期値：管理者＝全部／マネージャー＝設定以外／施工のメンバー＝施工管理・行動管理','Defaults: Admin = all / Manager = all but Settings / Checker / Cleaner = Cleaning Log only / Construction members = Construction + Tasks')}</div></div>`;
 }
 function renderSide(){
   const mf = document.getElementById('menufab'), open = document.getElementById('app').classList.contains('drawer'); if(mf) mf.innerHTML = icon(open?'close':'menu',22)+T(open?'閉じる':'メニュー', open?'Close':'Menu');
@@ -1352,7 +1357,7 @@ function render(){
 
 /* ===================== 清掃ログ ===================== */
 // 「一緒に清掃した担当者を追加」— 名前と役割は 2026-11-13 の清掃ログ画面より（後半の役割は未確認）
-const STAFF_ROLES = [['近藤','admin'],['大原','admin'],['矢崎','admin'],['石井','checker'],['藤原','manager'],['西川原','manager'],['友利','manager'],['アン','cleaner'],['倉田','cleaner'],['前','cleaner'],['渋谷','cleaner'],['島田','cleaner']];
+const STAFF_ROLES = [['近藤','admin'],['大原','admin'],['矢崎','admin'],['藤原','manager'],['西川原','manager'],['友利','manager']];   // チェッカー・クリーナーは 2026-11-25 にいったん外した
 const ROLE_NM = {admin:['管理者','Admin'], manager:['マネージャー','Manager'], checker:['チェッカー','Checker'], cleaner:['クリーナー','Cleaner']};
 /* ---- 予定（清掃カレンダー）— 担当・清掃完了は試作ではこのブラウザだけで仮に付けられる ---- */
 function yList(day){
@@ -1524,7 +1529,7 @@ function refCards(){
 }
 function actCards(){ return store.local.map(c=>Object.assign({}, c)); }
 function boardCards(){ return actCards().concat(ui.ref ? refCards() : []); }
-function members(){ return store.members || uniq((D.members||[]).concat(CLEAN_STAFF, recs().flatMap(r=>splitPeople(r.person)))); }
+function members(){ return (store.members || uniq((D.members||[]).concat(CLEAN_STAFF, recs().flatMap(r=>splitPeople(r.person))))).filter(m=>!HIDDEN_STAFF.includes(m)); }
 function visible(c){
   if(!ui.kinds[c.kind]) return false;
   if(ui.who==='__none') return !(c.members||[]).length;
@@ -1607,7 +1612,9 @@ function actMe(tb){
   const cards = boardCards().filter(visible); ui.who = keep;
   return isSP() ? mobileHtml(cards, true) : boardHtml(cards, true);
 }
-const ORDER = c => (c.ref?20:0) + (c.done?10:0) + ({sekou:0,teiki:1,check:2,clean:3,naikin:4,other:5}[c.kind] || 0);
+const TANTO = ['近藤','大原','矢崎'];   // 担当の並び順。ダッシュボードの「担当」「報告の担当」もこの3人だけ
+const ORDER = c => { const ms = c.members||[], rk = ms.length ? Math.min(...ms.map(m=>{ const i = TANTO.indexOf(m); return i<0 ? TANTO.length : i; })) : TANTO.length+1;
+  return (c.ref?100000:0) + rk*1000 + (ms.length>1?100:0) + (c.done?10:0) + ({sekou:0,teiki:1,check:2,clean:3,naikin:4,other:5}[c.kind] || 0); };
 // 日付の横に出す「清掃：5　パート：2」。清掃＝空室フィードの清掃予定の件数（本番を読むだけ）
 // パートの人数は読める元データがまだないので、数字を押して手で入れる（この端末に保存：store.part）
 const cleanCount = day => Object.keys(ROOMMAP).filter(tag=>/[Cc]/.test(feedChar(tag, day, 'clean'))).length;
@@ -1642,7 +1649,7 @@ function mobileHtml(cards, meOnly){
   cards.filter(c=>!c.ref).forEach(c=> cnt[c.date] = (cnt[c.date]||0) + 1);
   cards.forEach(c=> (byDay[c.date] = byDay[c.date]||[]).push(c));
   return `<div class="mstrip" id="mstrip">${RANGE.map(d=>{ const w = wd(d);
-      return `<button class="mday ${d===ui.day?'on':''} ${d===t?'today':''} ${w===0?'sun':w===6?'sat':''}" data-sday="${d}" onclick="jumpDay('${d}')">${WD[w]}${d===t?'・今日':''}<b>${+d.slice(8,10)}</b><span class="n">${cnt[d]?cnt[d]+'件':'—'}</span></button>`;}).join('')}</div>
+      return `<button class="mday ${d===ui.day?'on':''} ${d===t?'today':''} ${w===0?'sun':w===6?'sat':''}" data-sday="${d}" onclick="jumpDay('${d}')">${WD[w]}${d===t?'・今日':''}<b>${+d.slice(8,10)}</b></button>`;}).join('')}</div>
     <div class="mdays" id="mdays">${RANGE.map(d=>{ const w = wd(d), list = (byDay[d]||[]).sort((a,b)=>ORDER(a)-ORDER(b));
       return `<section class="mdsec ${d===t?'today':''} ${d<t?'past':''}" data-mday="${d}">
         <div class="mdh"><span class="d">${md(d)}</span><span class="w ${w===0?'sun':w===6?'sat':''}">${WD[w]}</span>${d===t?'<span class="tg">今日</span>':''}${dayNums(d)}<span class="n">${cnt[d]?cnt[d]+'件':''}</span></div>
@@ -1980,7 +1987,7 @@ function openItemPop(f, r, id){
     <div class="tph">${T('自分の予定に入れる','Add to my schedule')}</div>
     ${sch.length?`<ul class="vlist sm tpsl">${sch.map(c=>`<li><span class="d">${fmtW(c.date)}</span>${(c.members||[]).map(pav).join('') || `<small>${T('未割当','Unassigned')}</small>`}<span class="sp"></span><button class="btn" onclick="tpUnsched(${jsq(f)},${jsq(r)},${jsq(id)},${jsq(c.id)})">${T('取り消す','Remove')}</button></li>`).join('')}</ul>`:''}
     <div class="tpadd"><div><label>${T('予定日','Date')}</label><input type="date" id="tp_date" value="${def}" onchange="tpVac(${jsq(f)},${jsq(r)})"></div>
-      <div><label>${T('だれの予定','Who')}</label><select id="tp_who"><option value="">${T('（未割当）','(none)')}</option>${mem.map(m=>`<option ${m===me?'selected':''}>${esc(m)}</option>`).join('')}</select></div>
+      <div><label>${T('担当','Who')}</label><select id="tp_who"><option value="">${T('（未割当）','(none)')}</option>${TANTO.map(m=>`<option ${m===me?'selected':''}>${esc(m)}</option>`).join('')}</select></div>
       <button class="btn primary" onclick="tpAdd(${jsq(f)},${jsq(r)},${jsq(id)})">${T('予定に入れる','Add')}</button></div>
     <div class="tpv" id="tp_vac"></div><div class="err" id="tp_err"></div>
     <div class="tph">${T('定期タスク','Repeat')}</div>
@@ -1996,7 +2003,7 @@ function openItemPop(f, r, id){
     <div class="tph">${T('備考（注意点など）','Notes')}</div>
     <textarea id="tp_note" rows="3" placeholder="${T('例：家具の移動が必要／鍵は事務所／写真を撮ってから作業','Notes')}" oninput="tpNote(${jsq(id)},this.value)">${esc(tNote(id))}</textarea>
     <div class="muted" style="font-size:12px;margin-top:3px">${T('入力するとそのまま保存されます。ON・予定・備考は、試作ではこの端末の中だけに保存します。','Saved on this device only.')}</div>
-    <div class="tpbar"><button class="btn" onclick="tpClose()">${T('閉じる','Close')}</button><button class="btn primary" onclick="openReport(${jsq(f)},${jsq(r)},${jsq(id)})">${T('報告する','Report')}</button></div></div></div>`;
+    <div class="tpbar flat"><button class="btn" onclick="tpClose()">${T('閉じる','Close')}</button><button class="btn primary" onclick="openReport(${jsq(f)},${jsq(r)},${jsq(id)})">${T('報告する','Report')}</button></div></div></div>`;
   tpVac(f, r);
 }
 /* ---- 報告：タスクのポップアップ下の「報告する」から、やった日・担当・メモ・写真を入れる
@@ -2023,7 +2030,7 @@ function repOpen(ctx){
     <dl class="tpfull"><dt>${T('作業箇所','Place')}</dt><dd>${esc(ui.rep.place || T('（指定なし）','—'))}</dd><dt>${T('内容','Work')}</dt><dd>${esc(ui.rep.work)}</dd></dl>
     ${acg?`<label>${T('台ごとに「今回どうしたか」','Each unit')}</label><div id="rp_units"></div>`:''}
     <div class="two"><div><label>${T('やった日','Date')}</label><input type="date" id="rp_date" value="${today()}" max="${today()}"></div>
-      <div><label>${T('担当','Who')}</label><select id="rp_who"><option value="">${T('（未選択）','(none)')}</option>${mem.map(m=>`<option ${m===me?'selected':''}>${esc(m)}</option>`).join('')}</select></div></div>
+      <div><label>${T('担当','Who')}</label><select id="rp_who"><option value="">${T('（未選択）','(none)')}</option>${TANTO.map(m=>`<option ${m===me?'selected':''}>${esc(m)}</option>`).join('')}</select></div></div>
     <label>${T('メモ','Memo')}</label><textarea id="rp_note" rows="3" placeholder="${T('例：一面だけ張り替え／次回は材料の追加が必要','Memo')}"></textarea>
     <label>${T('写真（3枚まで）','Photos (up to 3)')}</label><input type="file" id="rp_file" accept="image/*" multiple onchange="repPick(this)">
     <div class="hph rpph" id="rp_ph"></div>
@@ -2232,11 +2239,11 @@ function homeDash(tb){
   const day = today(), rows = dashFiltered(day);
   const facs = uniq((D.rooms||[]).map(r=>r.facility));
   tb.className = 'toolbar';
-  tb.innerHTML = `<div class="seg">${[['rows','全施設','All facilities'],['grid','施設マップ','Map'],['task','タスク毎','By task']].map(v=>`<button class="${ui.dash.view===v[0]?'on':''}" onclick="ui.dash.view='${v[0]}';render()">${esc(T(v[1],v[2]))}</button>`).join('')}</div>
+  tb.innerHTML = `<div class="seg">${[['rows','全施設','All facilities'],['task','タスク毎','By task']].map(v=>`<button class="${ui.dash.view===v[0]?'on':''}" onclick="ui.dash.view='${v[0]}';render()">${esc(T(v[1],v[2]))}</button>`).join('')}</div>
     <select class="btn" onchange="ui.dash.fac=this.value;render()"><option value="">${T('全施設','All')}</option>${facs.map(f=>`<option ${ui.dash.fac===f?'selected':''}>${esc(f)}</option>`).join('')}</select>
     <label class="tog"><input type="checkbox" ${ui.dash.freeOnly?'checked':''} onchange="ui.dash.freeOnly=this.checked;render()">${T('空室のみ','Vacant')}</label>
     <label class="tog"><input type="checkbox" ${ui.dash.hiOnly?'checked':''} onchange="ui.dash.hiOnly=this.checked;render()">${T('優先/ONのみ','Priority/ON')}</label>${ui.dash.view==='rows'||!ui.dash.view?`<label class="tog"><input type="checkbox" ${dashFlip()?'checked':''} onchange="store.dashFlip=this.checked;save();render()">${T('横並び','Across')}</label>`:''}${ui.dash.freeOnly ? dashDayBar() : ''}`;
-  const body = ui.dash.view==='task' ? dashByTask(rows) : ui.dash.view==='grid' ? dashGrid(rows) : dashFlip() ? dashCols(rows) : dashRows(rows);
+  const body = ui.dash.view==='task' ? dashByTask(rows) : dashFlip() ? dashCols(rows) : dashRows(rows);
   return `<div class="dash">${body}</div>`;
 }
 const dashFlip = () => store.dashFlip !== false;   // 部屋×タスクの縦横入れ替え（ツールバーの「横に部屋を並べる」）
