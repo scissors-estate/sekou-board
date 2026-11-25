@@ -724,7 +724,7 @@ details.sug{background:#f9fafb;border:1px solid #eceef1}
 }
 /* ===== ダッシュボード：部屋×タスクの縦横入れ替え ===== */
 .dcols{display:flex;gap:8px;overflow-x:auto;align-items:flex-start;padding-bottom:8px}
-.dcol{flex:0 0 150px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.dcol{flex:0 0 150px;width:150px;min-width:150px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .dcol .rm{position:sticky;top:0;background:#fff;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:flex-start}
 .dcol .rm:hover{background:#f6f8fb}
 .dcol .rm .no{font-size:15px;font-weight:600}
@@ -734,7 +734,7 @@ details.sug{background:#f9fafb;border:1px solid #eceef1}
 .dcol .dcard{flex:none;max-width:none;width:100%;box-sizing:border-box}
 .dcol .none{color:#b0b5bf;font-size:13px}
 .dcol .dcard .t{white-space:normal;overflow:visible;word-break:break-all}
-@media(max-width:820px){ .dcol{flex:0 0 128px} .dcol .dcard{font-size:12px} }
+@media(max-width:820px){ .dcol{flex:0 0 128px;width:128px;min-width:128px} .dcol .dcard{font-size:12px} }
 /* ===== 部屋×タスク：過去にやった作業のカード ===== */
 .dcard.k-hist{--k:#8a94a6}
 /* ===== 部屋×タスク：済み／一部／まだ の色分け・施設ごとの折りたたみ・か所の設定 ===== */
@@ -823,7 +823,7 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .dfh em.od{background:#fdecec;color:#b42318}
 /* タスク毎の見方 */
 .dcols.dtk{align-items:flex-start}
-.dtk .dcol{flex:0 0 172px}
+.dtk .dcol{flex:0 0 172px;width:172px;min-width:172px}
 .dtk .rm.th{cursor:default;min-height:64px;box-sizing:border-box}
 .dtk .rm.th:hover{background:#fff}
 .dtk .rm.th .sub{font-size:12px;color:var(--sub)}
@@ -831,7 +831,7 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .dtk .rm.th em{font-style:normal;font-size:11px;border-radius:9px;padding:0 7px;background:#fdecec;color:#b42318}
 .dtk .dcard .room{flex-wrap:wrap;gap:2px 5px;font-size:12.5px}
 .dtk .dcard .room .band{font-size:10.5px;padding:0 5px}
-@media(max-width:820px){ .dtk .dcol{flex:0 0 150px} }
+@media(max-width:820px){ .dtk .dcol{flex:0 0 150px;width:150px;min-width:150px} }
 /* 行動管理：日付の横の清掃件数・パート人数 */
 .dn{font-size:12px;font-weight:400;color:var(--sub);white-space:nowrap}
 .dn button{border:0;background:none;padding:0 2px;font:inherit;color:inherit;text-decoration:underline dotted;cursor:pointer}
@@ -893,7 +893,8 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .dfstrip{overflow-y:visible} .dfstrip .dfac{height:auto} .dfstrip .dfac:not(.open) .dfh{min-height:300px} .dfstrip .dfac.open .dcols{overflow:visible}   /* 枠の中で縦スクロールしない（PC・スマホとも） */
 @media(max-width:820px){ .dfstrip .dfac:not(.open) .dfh{min-height:240px} }
 /* 横にスクロールしても施設名が左上に残るようにする（見出しを中身の幅にして左に固定） */
-.dfstrip .dfac.open{overflow:visible}
+.dfstrip .dfac.open{overflow:visible;width:-webkit-max-content;width:max-content;min-width:-webkit-max-content;min-width:max-content}
+.dfstrip .dfac.open .dcols{flex:none;width:-webkit-max-content;width:max-content}
 .dfstrip .dfac.open .dfh{position:sticky;left:0;z-index:3;align-self:flex-start;width:auto;max-width:calc(100vw - 24px);border-bottom:0;border-radius:10px;white-space:nowrap}
 .dfstrip .dfac.open .dcols{border-top:1px solid var(--line)}
 </style>
