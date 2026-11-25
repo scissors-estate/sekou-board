@@ -1295,7 +1295,7 @@ function renderSide(){
       <button onclick="toggleGrp('${g.key}')"><span class="ic">${icon(g.ic,19)}</span>${esc(nm(g))}<span class="ar">${icon('chev',14)}</span></button>
       <ul>${g.items.map(i=>`<li><a href="#${g.key}/${i.key}" class="${ui.app===g.key&&ui.page===i.key?'on':''}" onclick="drawer(false)"><span class="ic">${icon(i.ic,17)}</span>${esc(nm(i))}${i.need?`<span class="need">${T('形だけ','preview')}</span>`:''}</a></li>`).join('')}</ul>
     </div>`).join('')}
-    <div class="foot">${T('ログインは清掃ログのIDを使う予定（試作ではなし）<br>本番データは読むだけ・行動管理の変更はこの端末だけに保存','Login will use your Cleaning Log ID (no login in this prototype).<br>Live data is read-only.')}</div>`;
+    <div class="foot">${T('ログインなしで見られます<br>報告は施工管理（本番）に保存されます<br>ON・備考・予定・定期の設定はこの端末だけに保存','Login will use your Cleaning Log ID (no login in this prototype).<br>Live data is read-only.')}</div>`;
   const lb = document.getElementById('langBtn'); if(lb) lb.textContent = LANG==='en' ? 'JP' : 'EN';
 }
 function renderTop(){
@@ -2196,7 +2196,7 @@ function cardProg(t){
   return {n, m, unit: isAc ? '台' : 'か所', st: m>=n ? 'done' : m>0 ? 'part' : 'none'};
 }
 function dcardHtml(t, withRoom){
-  const fd = tDue(t), od = !!(fd && fd.over), over = t.over || (t.due && t.due<today()) || od, pg = cardProg(t), on = !!tOn(t.id), note = !!tNote(t.id);
+  const fd = tDue(t), over = tOver(t), od = over, pg = cardProg(t), on = !!tOn(t.id), note = !!tNote(t.id);
   return `<div class="dcard k-${t.kind} p${t.pri} s-${pg.st} ${t.short?'ab':''} ${on?'on':''} ${od?'od':''}" onclick="openTaskPop(${jsq(t.f)},${jsq(t.r)},${jsq(t.label)},${jsq(t.regId)},${jsq(t.id)})" title="${esc(t.short ? t.label : (t.caution||''))}">
     ${withRoom?`<div class="room">${esc(rmName(withRoom.rm.facility, withRoom.rm.room))} ${vacBand(withRoom.vac)}</div>`:''}
     <div class="hd"><span class="t" title="${esc(KIND[t.kind]||t.kind)}・${esc(t.src)}">${esc(t.short||t.label)}</span>${pg.n>1?`<span class="mc">${pg.m}/${pg.n}${pg.unit}</span>`:''}</div>
@@ -2239,7 +2239,9 @@ function afterDash(){
 }
 const dashSort = rows => [...rows].sort((a,b)=> a.top-b.top || (a.vac==='free'?0:a.vac==='inb'?1:2)-(b.vac==='free'?0:b.vac==='inb'?1:2));
 // 部屋の中のカードの並び：赤（ON・期限切れ）→ 黄（一部済み）→ 緑（済み）→ 白（まだ）。色つきのカードが下に残らないようにする
-const tRank = t => { if(tOn(t.id)) return 0; if((tDue(t)||{}).over) return 1; const st = cardProg(t).st; return st==='part' ? 2 : st==='done' ? 3 : 4; };
+// 期限切れ（⚠ が付くもの）は全部赤にする：ここで決めた定期タスクの期限切れ／施工管理（本番）の定期メンテの期限切れ／予定日を過ぎた予定
+const tOver = t => !!((tDue(t)||{}).over || t.over || (t.due && t.due<today()));
+const tRank = t => { if(tOn(t.id)) return 0; if(tOver(t)) return 1; const st = cardProg(t).st; return st==='part' ? 2 : st==='done' ? 3 : 4; };
 const dashCards = r => { const a = r.tasks.concat(showPast() ? r.hist||[] : []).map(t=>[t, tRank(t)]); return [0,1,2,3,4].flatMap(k=>a.filter(x=>x[1]===k).map(x=>x[0])); };
 const dashLegend = () => '';   // 色・略称の説明は 2026-11-25 までに全部消した
 // horiz＝施設のタブを横に並べ、開くと横に広がる（「横に部屋を並べる」のとき）
