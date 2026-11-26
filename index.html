@@ -807,6 +807,15 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .tpop .rpph span{width:64px;height:64px;border-radius:6px;overflow:hidden;background:#e6e9ee;display:block}
 .tpop .rpph img{width:100%;height:100%;object-fit:cover;display:block}
 .tpop input[type=file]{padding:6px;font-size:13px}
+/* 写真を画面の中で大きく見る */
+.vlist .hph .pv{cursor:zoom-in}
+.pvbg{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:12px}
+.pvbg img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;position:relative;z-index:1}
+.pvbg .pvld{position:absolute;color:#cbd2dc;font-size:14px}
+.pvbg .pvx{position:absolute;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:3;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:26px;line-height:1}
+.pvbg .pvn{position:absolute;top:calc(18px + env(safe-area-inset-top));left:0;right:0;text-align:center;color:#fff;font-size:14px;z-index:2;pointer-events:none}
+.pvbg .pva{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:44px;height:64px;border:0;border-radius:10px;background:rgba(255,255,255,.18);color:#fff;font-size:32px;line-height:1}
+.pvbg .pva.l{left:8px}.pvbg .pva.r{right:8px}
 /* 報告：エアコンの台ごと */
 #rp_units{display:flex;flex-direction:column;gap:8px}
 #rp_units .ublk{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
@@ -1912,6 +1921,25 @@ async function openRoomPop(f, r){
 const rmName = (f, r) => (f==='SCハイツ' ? 'SC' : f) + r;
 const photoIds = v => String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
 const drvThumb = (id, w) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w||400}`;
+/* 写真をこの画面の中で大きく見る（Google ドライブのページには移動しない）。
+   写真の置き場所は今までどおり Google ドライブ。表示だけ、ドライブの画像をそのまま読み込む */
+const phFallback = (el, id, w) => { if(el.dataset.fb) return; el.dataset.fb = 1; el.src = `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w${w||1600}`; };
+function openPhotos(urls, i, ids){ ui.pv = {urls:(urls||[]).slice(), ids:(ids||[]).slice(), i:i||0}; showPhoto(); }
+function showPhoto(){
+  const v = ui.pv; if(!v || !v.urls.length) return;
+  let el = document.getElementById('pview');
+  if(!el){ el = document.createElement('div'); el.id = 'pview'; document.body.appendChild(el); }
+  const many = v.urls.length>1, id = v.ids[v.i] || '';
+  el.innerHTML = `<div class="pvbg" onclick="if(event.target===this)closePhoto()">
+    <button class="pvx" onclick="closePhoto()" aria-label="閉じる">×</button>
+    ${many?`<span class="pvn">${v.i+1} / ${v.urls.length}</span>`:''}
+    <div class="pvld" id="pvld">${T('読み込み中…','Loading…')}</div>
+    <img src="${esc(v.urls[v.i])}" alt="" onload="document.getElementById('pvld').style.display='none'" onerror="${id?`phFallback(this,${jsq(id)},1600);`:''}if(this.dataset.fb2){document.getElementById('pvld').textContent='${T('写真を表示できませんでした','Could not load the photo')}'}this.dataset.fb2=1">
+    ${many && v.i>0?`<button class="pva l" onclick="ui.pv.i--;showPhoto()" aria-label="前へ">‹</button>`:''}
+    ${many && v.i<v.urls.length-1?`<button class="pva r" onclick="ui.pv.i++;showPhoto()" aria-label="次へ">›</button>`:''}</div>`;
+}
+function closePhoto(){ const el = document.getElementById('pview'); if(el) el.remove(); ui.pv = null; }
+document.addEventListener('keydown', e=>{ if(!ui.pv) return; if(e.key==='Escape') closePhoto(); else if(e.key==='ArrowLeft' && ui.pv.i>0){ ui.pv.i--; showPhoto(); } else if(e.key==='ArrowRight' && ui.pv.i<ui.pv.urls.length-1){ ui.pv.i++; showPhoto(); } });
 const drvView = id => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
 // その部屋・その作業の履歴（施工管理の完了記録。写真つき）
 function taskHistory(f, r, task, regularId){
@@ -1919,7 +1947,7 @@ function taskHistory(f, r, task, regularId){
   return recs().filter(x=>x.facility===f && x.room===r && isYmd(x.doneDate) && ((regularId && x.regularId===regularId) || x.task===task || splitTasks(x.task).includes(task)))
     .sort((a,b)=>b.doneDate.localeCompare(a.doneDate));
 }
-const histList = hist => hist.length ? `<ul class="vlist sm hist">${hist.map(h=>{ const ph = photoIds(h.photos); return `<li><span class="d">${fmtW(h.doneDate)}</span>${esc(h.task||'')}${h.person?`<small>${esc(h.person)}</small>`:''}${h.local?`<small class="lr">${T('この端末の報告','Local report')}</small><button class="btn lrx" onclick="repDone(${jsq(h.local)})">${T('文面','Text')}</button><button class="btn lrx" onclick="repDel(${jsq(h.local)})">${T('取り消す','Remove')}</button>`:''}${(h.lphotos||[]).length?`<div class="hph">${h.lphotos.map(u=>`<span><img src="${u}" alt=""></span>`).join('')}</div>`:''}${h.note?`<div class="hnote">${esc(h.note)}</div>`:''}${ph.length?`<div class="hph">${ph.map(p=>`<a href="${drvView(p)}" target="_blank" rel="noopener"><img src="${drvThumb(p,300)}" loading="lazy" alt=""></a>`).join('')}</div><div class="hpl">${ph.map((p,i)=>`<a href="${drvView(p)}" target="_blank" rel="noopener">${T('写真','Photo')}${i+1}</a>`).join('')}</div>`:''}</li>`; }).join('')}</ul>`
+const histList = hist => (ui.pvLocal = Object.fromEntries(hist.filter(h=>h.local).map(h=>[h.local, h.lphotos||[]])), hist.length) ? `<ul class="vlist sm hist">${hist.map(h=>{ const ph = photoIds(h.photos); return `<li><span class="d">${fmtW(h.doneDate)}</span>${esc(h.task||'')}${h.person?`<small>${esc(h.person)}</small>`:''}${h.local?`<small class="lr">${T('この端末の報告','Local report')}</small><button class="btn lrx" onclick="repDone(${jsq(h.local)})">${T('文面','Text')}</button><button class="btn lrx" onclick="repDel(${jsq(h.local)})">${T('取り消す','Remove')}</button>`:''}${(h.lphotos||[]).length?`<div class="hph">${h.lphotos.map((u,i)=>`<span class="pv" onclick="openPhotos(ui.pvLocal[${jsq(h.local)}],${i})"><img src="${u}" alt=""></span>`).join('')}</div>`:''}${h.note?`<div class="hnote">${esc(h.note)}</div>`:''}${ph.length?`<div class="hph">${ph.map((p,i)=>`<span class="pv" onclick="openPhotos(${jsq(ph.map(x=>drvThumb(x,1600)))},${i},${jsq(ph)})"><img src="${drvThumb(p,300)}" loading="lazy" alt="" onerror="phFallback(this,${jsq(p)},400)"></span>`).join('')}</div><div class="hpl">${ph.map((p,i)=>`<a href="#" onclick="event.preventDefault();openPhotos(${jsq(ph.map(x=>drvThumb(x,1600)))},${i},${jsq(ph)})">${T('写真','Photo')}${i+1}</a>`).join('')}</div>`:''}</li>`; }).join('')}</ul>`
   : `<div class="muted" style="font-size:12px">${T('この作業の完了記録はまだありません','No records for this task yet')}</div>`;
 /* ---- 作業リストのカードを押したときのポップアップ ----
    正式な表記／タスクのON・OFF／自分の予定に入れる（予定日）／作業履歴（写真リンク）／備考
