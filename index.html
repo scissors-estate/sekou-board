@@ -808,6 +808,9 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .tpop .rpph img{width:100%;height:100%;object-fit:cover;display:block}
 .tpop input[type=file]{padding:6px;font-size:13px}
 /* 写真を画面の中で大きく見る */
+.rph{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.rph span{width:56px;height:56px;border-radius:6px;overflow:hidden;background:#e6e9ee;display:block;cursor:zoom-in}
+.rph img{width:100%;height:100%;object-fit:cover;display:block}
 .vlist .hph .pv{cursor:zoom-in}
 .pvbg{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:12px}
 .pvbg img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;position:relative;z-index:1}
@@ -1393,7 +1396,7 @@ const ckStay = (tag, d) => feedChar(tag, d, 'stay');
 function recRow(x, when){
   return `<div class="row"><div class="main"><div class="t">${esc(x.facility)} ${esc(x.room)} <span class="badge ${x.regularId?'teiki':'sekou'}">${esc(x.type||'')}</span></div>
     <div class="s">${esc(x.task)}${x.note?`・${esc(x.note)}`:''}</div>
-    <div class="s">${splitPeople(x.person).map(p=>`<span class="av">${esc(p)}</span>`).join(' ')}</div></div>${when?`<span class="badge date">${esc(when)}</span>`:''}</div>`;
+    <div class="s">${splitPeople(x.person).map(p=>`<span class="av">${esc(p)}</span>`).join(' ')}</div>${(ph=>ph.length?`<div class="rph">${ph.map((p,i)=>`<span onclick="openPhotos(${jsq(ph.map(v=>drvThumb(v,1600)))},${i},${jsq(ph)})"><img src="${drvThumb(p,300)}" loading="lazy" alt="" onerror="phFallback(this,${jsq(p)},400)"></span>`).join('')}</div>`:'')(photoIds(x.photos))}</div>${when?`<span class="badge date">${esc(when)}</span>`:''}</div>`;
 }
 /* ---- 工事・定期メンテの追加／変更／削除（季節でやることが変わるので）
    試作ではこのブラウザだけに保存し、本番のデータ（施工管理のシート）は変えない。本番では施工管理の GAS に保存する ---- */
@@ -1515,8 +1518,12 @@ function sekouHistory(tb){
 function histResults(){
   const ws = ui.q.split(/[\s　]+/).filter(Boolean);
   const list = recs().filter(x=>x.doneDate).filter(x=>{ const s = [x.facility,x.room,x.task,x.person,x.type,x.note].join(' '); return ws.every(w=>s.includes(w)); })
-    .sort((a,b)=>dkey(b.doneDate).localeCompare(dkey(a.doneDate))).slice(0,100);
-  return `<h2>履歴<span class="r">${list.length}件${list.length===100?'（最新100件）':''}</span></h2>` + (list.map(x=>recRow(x, md(x.doneDate))).join('') || '<div class="row muted">見つかりません</div>');
+    .sort((a,b)=>dkey(b.doneDate).localeCompare(dkey(a.doneDate)));
+  // 過去の記録もぜんぶ見られる（100件ずつ出す）。今年でない記録は年も出す
+  const n = Math.max(100, ui.histN||100), show = list.slice(0, n), yr = today().slice(0,4);
+  const when = d => isYmd(d) && d.slice(0,4)!==yr ? `${d.slice(0,4)}/${md(d)}` : md(d);
+  return `<h2>履歴<span class="r">${list.length}件${list.length>n?`（${n}件まで表示）`:''}</span></h2>` + (show.map(x=>recRow(x, when(x.doneDate))).join('') || '<div class="row muted">見つかりません</div>')
+    + (list.length>n ? `<div class="row"><button class="btn" style="margin:auto" onclick="ui.histN=${n+100};document.getElementById('histRes').innerHTML=histResults()">${T('次の100件を表示','Show 100 more')}（${T('残り','')}${list.length-n}件）</button></div>` : '');
 }
 
 /* ===================== 行動管理（Asana型ボード） ===================== */
