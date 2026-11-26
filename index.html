@@ -786,6 +786,25 @@ i.s-done{background:#ecf7f0;border-color:#8fcfa9}i.s-part{background:#fff6dc;bor
 .fbgate .btn{padding:10px 18px}
 #fbnote{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:300;background:#1f2430;color:#fff;border-radius:10px;padding:9px 14px;font-size:13px;max-width:90vw;display:none}
 #fbnote.show{display:block}#fbnote.err{background:#b42318}
+.addtk{border:1px dashed #c4c9d2;background:none;border-radius:7px;padding:4px 6px;font-size:12px;color:var(--sub);cursor:pointer;white-space:nowrap}
+.addtk:hover{background:#f6f8fb;color:var(--text)}
+.drow .tk .addtk{flex:none;align-self:center}
+.rchips{display:flex;flex-wrap:wrap;gap:6px}
+.rchips .rc{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 12px;font-size:13.5px;color:var(--text)}
+.rchips .rc.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.rchips .rc.all{border-style:dashed}
+.rchips .rc.all.on{border-style:solid}
+.card .tag{white-space:nowrap}
+/* スマホ：長押しでつかんで動かす */
+.mlist .card{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.card.dragging{opacity:.35}
+.card.ghost{box-shadow:0 8px 24px rgba(0,0,0,.28);transform:scale(1.02);background:#fff}
+.mdsec.dropto{outline:2px dashed var(--accent);outline-offset:-3px;background:#eef3fc}
+.mday.dropto{outline:2px solid var(--accent)}
+body.spdrag{overscroll-behavior:contain}
+/* PC：上にも出す横スクロールのバー */
+.hsb{position:sticky;z-index:25;overflow-x:auto;overflow-y:hidden;height:16px;margin:0 0 6px;background:var(--bg);border-radius:8px}
+.hsb>div{height:1px}
 .tabbar{display:none}
 .repfab{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px;position:fixed;right:18px;bottom:20px;width:58px;height:58px;border-radius:50%;border:0;background:#ffd34d;color:var(--side-bg);box-shadow:0 4px 14px rgba(12,40,55,.35);z-index:55;font-size:10px;font-weight:600;cursor:pointer}
 .rpk{display:flex;flex-direction:column;gap:5px}
@@ -1062,7 +1081,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "948790602582",
   appId: "1:948790602582:web:89ce55182c015d812384f7"
 };
-const APP_VER = '11/26 18:07';   // 公開用を作るときに日時が入る。左メニューの下に出るので、どの版が載っているか見分けられる
+const APP_VER = '11/26 18:37';   // 公開用を作るときに日時が入る。左メニューの下に出るので、どの版が載っているか見分けられる
 const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const FB = {on:false, user:null, db:null, shadow:null, timer:0, ready:false};
 const fbEnc = k => encodeURIComponent(k).replace(/\./g, '%2E');
@@ -1070,10 +1089,11 @@ const fbDec = k => { try { return decodeURIComponent(k); } catch(e){ return k; }
 // 端末の store ⇔ 共有の形（どれも「id → 中身」の表）
 function fbMaps(){
   const byId = a => Object.fromEntries((a||[]).map(x=>[x.id, x]));
-  return {ton:store.ton||{}, tnote:store.tnote||{}, tfreq:store.tfreq||{}, part:store.part||{}, cards:byId(store.local), treps:byId(store.treps)};
+  return {ton:store.ton||{}, tnote:store.tnote||{}, tfreq:store.tfreq||{}, part:store.part||{}, cards:byId(store.local), treps:byId(store.treps), ctasks:store.ctasks||{}};
 }
 function fbApply(m){
   store.ton = m.ton||{}; store.tnote = m.tnote||{}; store.tfreq = m.tfreq||{}; store.part = m.part||{};
+  store.ctasks = {}; Object.keys(m.ctasks||{}).forEach(k=>{ const x = m.ctasks[k]; store.ctasks[k] = Object.assign({}, x, {rooms: x.rooms==='*' ? '*' : Object.values(x.rooms||[])}); }); clearItemCache();
   const fix = c => Object.assign({members:[], tags:[]}, c, {members:Object.values(c.members||[]), tags:Object.values(c.tags||[])});
   store.local = Object.values(m.cards||{}).map(fix).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
   store.treps = Object.values(m.treps||{}).map(x=>Object.assign({}, x, {photos:Object.values(x.photos||[])})).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
@@ -1089,7 +1109,7 @@ function fbDiff(a, b){
   return out;
 }
 function fbFromSnap(v){
-  const m = {ton:{}, tnote:{}, tfreq:{}, part:{}, cards:{}, treps:{}};
+  const m = {ton:{}, tnote:{}, tfreq:{}, part:{}, cards:{}, treps:{}, ctasks:{}};
   Object.keys(m).forEach(g=> Object.keys((v||{})[g]||{}).forEach(k=>{ m[g][fbDec(k)] = v[g][k]; }));
   return m;
 }
@@ -1333,12 +1353,15 @@ const nfk = s => tNorm(String(s||'').normalize('NFKC'));
 const roomInGroup = (g, room) => g.rooms==='*' || (g.rooms==='1F' ? /^1/.test(room) : g.rooms.includes(String(room)));
 // その部屋の作業リスト（リストのない施設・事務所は null）
 const _itemCache = {};
+const clearItemCache = () => Object.keys(_itemCache).forEach(k=>delete _itemCache[k]);
 function roomItems(f, r){
   const k = f+'|'+r; if(k in _itemCache) return _itemCache[k];
   const groups = FAC_TASKS[f]; if(!groups || r==='事務所') return _itemCache[k] = null;
-  return _itemCache[k] = groups.filter(g=>roomInGroup(g, r)).flatMap(g=>g.items).map(([short, place, work, cond])=>{
+  // アプリで足したタスク（store.ctasks：施設ごと。対象は全部屋か、選んだ部屋）もリストの後ろに並べる
+  const extra = Object.values(store.ctasks||{}).filter(ct=>ct.f===f && (ct.rooms==='*' || (ct.rooms||[]).includes(r))).sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(ct=>[ct.short, ct.place||'', ct.work, '', ct.id]);
+  return _itemCache[k] = groups.filter(g=>roomInGroup(g, r)).flatMap(g=>g.items).concat(extra).map(([short, place, work, cond, cid])=>{
     const full = place ? place+' '+work : work, fa = FULL_ALIAS[tNorm(full)], wk = tNorm(work), al = fa || WORK_ALIAS[wk] || [wk];
-    return {id:`fac:${k}:${full}`, short, place, work, full, cond:cond||'', al, fam: fa ? null : (WORK_ALIAS[wk] || wk),
+    return {id: cid ? `fac:${k}:＋${cid}` : `fac:${k}:${full}`, custom:cid||'', short, place, work, full, cond:cond||'', al, fam: fa ? null : (WORK_ALIAS[wk] || wk),
       ptok: place.replace(R1P,'寝室A').replace(R2P,'寝室B').replace(/（[^）]*）/g,'')   // 記録・エアコン台帳は「寝室A／寝室B」と書かれている想定で探す
         .split(/[\s　、]+/).map(nfk).filter(Boolean)};
   });
@@ -1384,7 +1407,7 @@ function lastDoneOf(f, r, task, regularId){
 // その部屋の作業履歴（新しい順）
 function roomHistory(f, r, n){
   const a = recs().filter(x=>x.facility===f && x.room===r && isYmd(x.doneDate)).map(x=>({d:x.doneDate, task:x.task, who:x.person||''}));
-  const b = actCards().filter(c=>c.done && c.facility===f && c.room===r && isYmd(c.date)).map(c=>({d:c.date, task:c.sub||KIND[c.kind], who:(c.members||[]).join('・')}));
+  const b = actCards().filter(c=>c.done && cardHas(c, f, r) && isYmd(c.date)).map(c=>({d:c.date, task:c.sub||KIND[c.kind], who:(c.members||[]).join('・')}));
   return a.concat(b).sort((x,y)=>y.d.localeCompare(x.d)).slice(0,n);
 }
 // その日を含む空室期間（読み込み済みの月だけで判定する同期版）
@@ -1664,7 +1687,15 @@ function refCards(){
   });
   return out;
 }
-function actCards(){ return store.local.map(c=>Object.assign({}, c)); }
+// タスクの部屋：1部屋・複数の部屋（rooms）・施設の全部屋（allRooms）のどれか
+const cardRooms = c => (c.rooms && c.rooms.length) ? c.rooms : (c.room ? [c.room] : []);
+const cardHas = (c, f, r) => c.facility===f && (c.allRooms || cardRooms(c).includes(r));
+const cardPlace = (c, sep) => !c.facility ? '' : c.facility + (sep===undefined?' ':sep) + (c.allRooms ? '全部屋' : cardRooms(c).join('・'));
+// 自分用メモ（priv）：作った人の「自分」のページにだけ出す。ボード・ダッシュボード・自動メッセージには出さない
+const ownerKey = () => (FB.user && FB.user.email) ? String(FB.user.email).toLowerCase() : 'local';
+const isMine = c => !c.priv || c.owner===ownerKey();
+function actCards(){ return store.local.filter(c=>!c.priv).map(c=>Object.assign({}, c)); }
+function myMemos(){ return store.local.filter(c=>c.priv && c.owner===ownerKey()).map(c=>Object.assign({}, c)); }
 function boardCards(){ return actCards().concat(ui.ref ? refCards() : []); }
 function members(){ return (store.members || uniq((D.members||[]).concat(CLEAN_STAFF, recs().flatMap(r=>splitPeople(r.person))))).filter(m=>!HIDDEN_STAFF.includes(m)); }
 function visible(c){
@@ -1679,7 +1710,7 @@ const pcol = m => PERSON_COLOR[m] || "#8a94a6";
 const pav = m => `<span class="av pc l${Math.min(4, [...String(m)].length)}" style="background:${pcol(m)}" title="${esc(m)}">${esc(m)}</span>`;
 function cardHtml(c){
   const mem = (c.members||[]).length ? c.members.map(pav).join('') : `<span class="av none l3">未割当</span>`;
-  const tags = (c.tags||[]).map(t=>`<span class="tag ${t.includes('当日イン')?'in':''}">${esc(t)}</span>`).join('');
+  const tags = (c.tags||[]).concat(c.priv ? ['自分のみ'] : []).map(t=>`<span class="tag ${t.includes('当日イン')?'in':''}">${esc(t)}</span>`).join('');
   // コンパクト：左に担当、右に「場所」と「種類・やること」を2行で
   return `<div class="card k-${c.kind} ${c.done?'done':''} ${c.ref?'ref':''}" style="--k:${(c.members||[]).length?pcol(c.members[0]):'#c4c9d2'}" ${c.ref?'':`draggable="true" onclick="openCard('${esc(c.id)}')"`} data-id="${esc(c.id)}">
     <div class="cw">${mem}</div>
@@ -1721,7 +1752,7 @@ function actToolbar(tb, meOnly){
   tb.className = 'toolbar';
   if(isSP()){   // スマホは1行にまとめる（だれ＝プルダウン）
     tb.innerHTML = meOnly
-      ? `<span class="muted">👤 ${store.me?esc(store.me):'未設定'}</span><button class="btn" onclick="openMe()">${store.me?'変える':'自分を選ぶ'}</button><button class="btn" onclick="scrollToday()">今日へ</button><label class="muted" style="margin-left:auto"><input type="checkbox" ${ui.ref?'checked':''} onchange="ui.ref=this.checked;render()"> 清掃・施工も表示</label>`
+      ? `<span class="muted">👤 ${store.me?esc(store.me):'未設定'}</span><button class="btn" onclick="openMe()">${store.me?'変える':'自分を選ぶ'}</button><button class="btn" onclick="scrollToday()">今日へ</button><button class="btn" onclick="openMemo()">＋メモ</button><label class="muted" style="margin-left:auto"><input type="checkbox" ${ui.ref?'checked':''} onchange="ui.ref=this.checked;render()"> 清掃・施工も表示</label>`
       : `<select onchange="ui.who=this.value;render()" style="padding:5px 8px;border:1px solid var(--line);border-radius:8px;max-width:45%"><option value="">全員</option>${members().map(m=>`<option ${ui.who===m?'selected':''}>${esc(m)}</option>`).join('')}<option value="__none" ${ui.who==='__none'?'selected':''}>未割当</option></select>
          <button class="btn" onclick="scrollToday()">今日へ</button><label class="muted" style="margin-left:auto"><input type="checkbox" ${ui.ref?'checked':''} onchange="ui.ref=this.checked;render()"> 清掃・施工も表示</label>`;
     return;
@@ -1729,7 +1760,7 @@ function actToolbar(tb, meOnly){
   tb.innerHTML = `
     ${meOnly?'':`<div class="seg"><button class="${ui.mode==='day'?'on':''}" onclick="ui.mode='day';render();scrollToday()">日ごと</button><button class="${ui.mode==='lane'?'on':''}" onclick="ui.mode='lane';render();scrollToday()">メンバー × 日</button></div>`}
     <button class="btn" onclick="scrollToday()">今日へ</button>
-    ${meOnly ? `<span class="muted">👤 ${store.me?esc(store.me):'未設定'}</span><button class="btn" onclick="openMe()">${store.me?'変える':'自分を選ぶ'}</button>` :
+    ${meOnly ? `<span class="muted">👤 ${store.me?esc(store.me):'未設定'}</span><button class="btn" onclick="openMe()">${store.me?'変える':'自分を選ぶ'}</button><button class="btn" onclick="openMemo()">＋ 自分用メモ</button>` :
       `<span class="muted">だれ</span><select class="btn" onchange="ui.who=this.value;render()"><option value="">全員</option>${members().map(m=>`<option ${ui.who===m?'selected':''}>${esc(m)}</option>`).join('')}<option value="__none" ${ui.who==='__none'?'selected':''}>未割当</option></select>`}
     <label class="chip ${ui.ref?'on':''}" style="cursor:pointer"><input type="checkbox" ${ui.ref?'checked':''} onchange="ui.ref=this.checked;render()" style="margin:0 4px 0 0;vertical-align:-1px">清掃・施工の予定を参考に重ねる</label>
     <span style="margin-left:auto"></span>
@@ -1746,7 +1777,7 @@ function actMe(tb){
   actToolbar(tb, true);
   document.getElementById('fab').style.visibility = '';
   const keep = ui.who; ui.who = store.me;
-  const cards = boardCards().filter(visible); ui.who = keep;
+  const cards = boardCards().filter(visible).concat(myMemos()); ui.who = keep;
   return isSP() ? mobileHtml(cards, true) : boardHtml(cards, true);
 }
 const TANTO = ['近藤','大原','矢崎'];   // 担当の並び順。ダッシュボードの「担当」「報告の担当」もこの3人だけ
@@ -1823,13 +1854,47 @@ function scrollToday(){
   const el = sc.querySelector(`[data-day="${today()}"]`); if(!el) return;
   sc.scrollLeft = Math.max(0, el.offsetLeft - sc.offsetLeft - (ui.mode==='lane'?110:16) - 20);
 }
+// スマホ：タスクを長押しでつかんで、別の日（下の一覧の日・上の日付ボタン）へ動かす
+function spDrag(el){
+  let timer = 0, g = null, sx = 0, sy = 0, ly = 0, raf = 0, target = null;
+  const clearT = ()=>{ document.querySelectorAll('.dropto').forEach(x=>x.classList.remove('dropto')); };
+  const pick = (x, y)=>{ const e = document.elementFromPoint(x, y); const z = e && (e.closest('[data-sday]') || e.closest('.mdsec')); return z ? {el:z, day:z.dataset.sday || z.dataset.mday} : null; };
+  const loop = ()=>{ if(!g) return; const lim = spOffset() + 50; if(ly < lim) window.scrollBy(0, -10); else if(ly > window.innerHeight - 120) window.scrollBy(0, 10); raf = requestAnimationFrame(loop); };
+  const stop = ()=>{ clearTimeout(timer); timer = 0; if(g){ g.remove(); g = null; } cancelAnimationFrame(raf); el.classList.remove('dragging'); clearT(); document.body.classList.remove('spdrag'); };
+  el.addEventListener('touchstart', e=>{ if(e.touches.length!==1) return; const t = e.touches[0]; sx = t.clientX; sy = ly = t.clientY;
+    timer = setTimeout(()=>{ timer = 0; const r = el.getBoundingClientRect(); g = el.cloneNode(true); g.className += ' ghost'; g.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;z-index:150;pointer-events:none`;
+      document.body.appendChild(g); el.classList.add('dragging'); document.body.classList.add('spdrag'); if(navigator.vibrate) navigator.vibrate(15); g._dy = sy - r.top; raf = requestAnimationFrame(loop); }, 450); }, {passive:true});
+  el.addEventListener('touchmove', e=>{ const t = e.touches[0];
+    if(timer && Math.hypot(t.clientX - sx, t.clientY - sy) > 8){ clearTimeout(timer); timer = 0; }
+    if(!g) return; e.preventDefault(); ly = t.clientY; g.style.top = (t.clientY - g._dy) + 'px';
+    clearT(); target = pick(t.clientX, t.clientY); if(target) target.el.classList.add('dropto'); }, {passive:false});
+  el.addEventListener('touchend', e=>{ const was = !!g, tg = target; target = null; stop(); if(!was) return;
+    ui.noClick = Date.now(); e.preventDefault();
+    const c = store.local.find(x=>x.id===el.dataset.id); if(!c || !tg || !tg.day || tg.day===c.date) return;
+    c.date = tg.day; ui.spY = window.scrollY; ui.spKeep = true; save(); render(); });
+  el.addEventListener('touchcancel', stop);
+  el.addEventListener('contextmenu', e=>e.preventDefault());
+}
 function afterBoard(){
   // スマホ：日付の帯を画面上部に固定し、選んでいる日の位置まで縦にスクロール
   const top = document.querySelector('.top'), strip = document.getElementById('mstrip');
+  const focus = ui.focusDay && RANGE.includes(ui.focusDay) ? ui.focusDay : ''; ui.focusDay = '';
   if(strip){
     document.documentElement.style.setProperty('--toph', (top ? top.offsetHeight : 0) + 'px');
     document.documentElement.style.setProperty('--striph', strip.offsetHeight + 'px');
-    jumpDay(ui.day, false);
+    if(focus) jumpDay(focus, false);
+    else if(ui.spY != null && ui.spKeep){ window.scrollTo(0, ui.spY); spyDays(); }
+    else jumpDay(ui.day, false);
+    ui.spKeep = false;
+    document.querySelectorAll('.mlist .card:not(.ref)').forEach(spDrag);
+  }
+  // PC：描き直しても横の位置を保つ。保存したタスクの日が画面の外なら、その日まで動かす
+  const sc = document.getElementById('scroller');
+  if(sc && !strip){
+    if(ui.bsl != null) sc.scrollLeft = ui.bsl;
+    if(focus){ const el = sc.querySelector(`[data-day="${focus}"]`); if(el){ const l = el.offsetLeft - sc.offsetLeft; if(l < sc.scrollLeft + (ui.mode==='lane'?110:0) || l + el.offsetWidth > sc.scrollLeft + sc.clientWidth) sc.scrollLeft = Math.max(0, l - (ui.mode==='lane'?130:40)); } }
+    ui.bsl = sc.scrollLeft;
+    sc.addEventListener('scroll', ()=>{ ui.bsl = sc.scrollLeft; }, {passive:true});
   }
   // PC：ドラッグで日付・担当を動かす
   document.querySelectorAll('.card[draggable]').forEach(el=> el.addEventListener('dragstart', e=>{
@@ -1863,32 +1928,45 @@ function openNew(day, who0){
   const who = who0!==undefined ? who0 : ui.page==='me' ? store.me : (ui.who && ui.who!=='__none' ? ui.who : '');
   showModal({id:'', kind:'check', date:day||today(), facility:'', room:'', sub:'', members:who?[who]:[], note:''}, true);
 }
-function openCard(id){ const c = store.local.find(x=>x.id===id); if(c) showModal(c, false); }
+function openCard(id){ if(Date.now() - (ui.noClick||0) < 600) return; const c = store.local.find(x=>x.id===id); if(c) showModal(c, false); }
+// 自分用メモを足す（「自分」のページ）
+function openMemo(){ showModal({id:'', kind:'other', date:(isSP() && ui.day) || today(), facility:'', room:'', sub:'', members:store.me?[store.me]:[], note:'', priv:true}, true); }
 let editing = null;
 function showModal(c, isNew){
-  editing = {c, isNew, members:[...(c.members||[])]};
+  editing = {c, isNew, members:[...(c.members||[])], rooms:[...cardRooms(c)], all:!!c.allRooms};
   const facs = uniq((D.rooms||[]).map(r=>r.facility));
   const roomsOf = f => (D.rooms||[]).filter(r=>r.facility===f).map(r=>r.room);
   const v = c.facility&&c.room&&c.date ? vacOf(c.facility,c.room,c.date) : '';
   document.getElementById('modal').innerHTML = `<div class="mask" onclick="if(event.target===this)closeModal()"><div class="modal">
-    <h3>${isNew?'タスクを追加':esc(c.title)}</h3>
+    <h3>${c.priv ? (isNew?'自分用メモを追加':'自分用メモ') : isNew?'タスクを追加':esc(c.title)}</h3>
     <div class="two"><div><label>種類</label><select id="f_kind">${Object.keys(KIND).map(k=>`<option value="${k}" ${c.kind===k?'selected':''}>${KIND[k]}</option>`).join('')}</select></div>
       <div><label>日付</label><input id="f_date" type="date" value="${esc(c.date)}"></div></div>
     <div class="two"><div><label>施設</label><select id="f_fac" onchange="fillRooms()"><option value="">（なし）</option>${facs.map(f=>`<option ${c.facility===f?'selected':''}>${esc(f)}</option>`).join('')}</select></div>
-      <div><label>部屋</label><select id="f_room">${(roomsOf(c.facility).length?roomsOf(c.facility):['']).map(r=>`<option ${c.room===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div></div>
+      <div></div></div>
+    <label>部屋<small style="font-weight:400">（いくつでも選べます）</small></label><div class="rchips" id="f_rooms"></div>
     <label>やること</label><input id="f_sub" value="${esc(c.sub||'')}" placeholder="例：空室チェック、バルサン、備品補充" list="f_tasks">
     <datalist id="f_tasks">${uniq((D.tasks||[]).concat((D.regular||[]).map(g=>g.task),['空室チェック','備品補充','鍵の受け渡し'])).map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
     <label>だれが行く</label><div class="mem" id="f_mem"></div>
     <label>メモ</label><textarea id="f_note" rows="2">${esc(c.note||'')}</textarea>
     <label><input type="checkbox" id="f_done" ${c.done?'checked':''} style="width:auto"> 終わった</label>
+    <label><input type="checkbox" id="f_priv" ${c.priv?'checked':''} style="width:auto"> 自分だけに表示する（メモ用。ボードやほかの人の画面には出ません）</label>
     ${v?`<div class="note">この日の ${esc(c.facility)} ${esc(c.room)}：${v==='free'?'終日空き':v==='inb'?'今日チェックイン（IN前なら入れる）':'宿泊中'}</div>`:''}
     <div class="note">${FIREBASE_CONFIG ? '行動管理のタスクは全員で共有されます。' : 'この端末にだけ保存します。'}施工の完了を記録するときは「報告する」を使ってください。</div>
     ${!isNew?(rs=>rs.length?`<label>${T('報告','Reports')}</label><ul class="vlist sm hist">${rs.map(x=>`<li><span class="d">${fmtW(x.doneDate)}</span>${x.person?`<small>${esc(x.person)}</small>`:''}<button class="btn lrx" onclick="repDone(${jsq(x.id)})">${T('文面','Text')}</button><button class="btn lrx" onclick="repDel(${jsq(x.id)})">${T('取り消す','Remove')}</button>${x.note?`<div class="hnote">${esc(x.note)}</div>`:''}</li>`).join('')}</ul>`:'')((store.treps||[]).filter(x=>x.cardId===c.id || (c.tid && x.tid===c.tid))):''}
-    <div class="foot">${!isNew?`<button class="btn danger" onclick="removeCard()">削除</button><button class="btn rpb" onclick="repFromCard(${jsq(c.id)})">${T('報告する','Report')}</button>`:''}<button class="btn" onclick="closeModal()">やめる</button><button class="btn primary" onclick="saveModal()">保存</button></div>
+    <div class="foot">${!isNew?`<button class="btn danger" onclick="removeCard()">削除</button><button class="btn" onclick="dupCard()">複製</button>${c.priv?'':`<button class="btn rpb" onclick="repFromCard(${jsq(c.id)})">${T('報告する','Report')}</button>`}`:''}<button class="btn" onclick="closeModal()">やめる</button><button class="btn primary" onclick="saveModal()">保存</button></div>
   </div></div>`;
-  drawMem();
+  drawMem(); drawRooms();
 }
-function fillRooms(){ const f = document.getElementById('f_fac').value; document.getElementById('f_room').innerHTML = (D.rooms||[]).filter(r=>r.facility===f).map(r=>`<option>${esc(r.room)}</option>`).join('') || '<option></option>'; }
+function fillRooms(){ editing.rooms = []; editing.all = false; drawRooms(); }
+// 部屋：ボタンで選ぶ。「全部屋」か、部屋をいくつでも
+function drawRooms(){
+  const el = document.getElementById('f_rooms'), f = document.getElementById('f_fac').value; if(!el) return;
+  const rs = (D.rooms||[]).filter(r=>r.facility===f).map(r=>r.room);
+  if(!f || !rs.length){ el.innerHTML = `<span class="muted" style="font-size:13px">${f?'部屋の登録がありません':'施設を選ぶと部屋が出ます'}</span>`; return; }
+  el.innerHTML = (rs.length>1 ? `<button type="button" class="rc all ${editing.all?'on':''}" onclick="editing.all=!editing.all;if(editing.all)editing.rooms=[];drawRooms()">全部屋</button>` : '')
+    + rs.map(r=>`<button type="button" class="rc ${!editing.all && editing.rooms.includes(r)?'on':''}" onclick="toggleRoom(${jsq(r)})">${esc(r)}</button>`).join('');
+}
+function toggleRoom(r){ editing.all = false; const a = editing.rooms, i = a.indexOf(r); i>=0 ? a.splice(i,1) : a.push(r); drawRooms(); }
 // だれが行く：プルダウンで1人ずつ追加（2人目以降も同じプルダウンから）。選んだ人は × で外せる
 function drawMem(){
   const sel = editing.members, rest = members().filter(m=>!sel.includes(m));
@@ -1897,14 +1975,29 @@ function drawMem(){
 }
 function toggleMem(m){ const a = editing.members, i = a.indexOf(m); i>=0 ? a.splice(i,1) : a.push(m); drawMem(); }
 function saveModal(){
-  const v = id => document.getElementById(id).value, f = v('f_fac'), r = v('f_room'), sub = v('f_sub').trim();
-  const patch = {kind:v('f_kind'), date:v('f_date')||editing.c.date, facility:f, room:f?r:'', sub, note:v('f_note'), members:[...editing.members], done:document.getElementById('f_done').checked, title: f ? `${f} ${r}`.trim() : (sub||'予定')};
+  const v = id => document.getElementById(id).value, f = v('f_fac'), sub = v('f_sub').trim();
+  const order = (D.rooms||[]).filter(r=>r.facility===f).map(r=>r.room), rooms = f && !editing.all ? order.filter(r=>editing.rooms.includes(r)) : [];
+  const patch = {kind:v('f_kind'), date:v('f_date')||editing.c.date, facility:f, room: rooms.length===1 ? rooms[0] : '', rooms, allRooms: !!(f && editing.all), sub, note:v('f_note'), members:[...editing.members], done:document.getElementById('f_done').checked,
+    priv:document.getElementById('f_priv').checked};
+  patch.owner = patch.priv ? (editing.c.owner || ownerKey()) : '';
+  patch.title = cardPlace(patch) || sub || '予定';
   if(editing.isNew) store.local.push(Object.assign({id:'L'+Date.now(), tags:[]}, patch));
   else Object.assign(store.local.find(x=>x.id===editing.c.id), patch);
+  ui.focusDay = patch.date;   // 保存したタスクの日をそのまま表示する（今日に戻さない）
   save(); closeModal(); render();
+}
+// タスクを丸ごと複製する（同じ日に同じ内容でもう1つ。「終わった」は外す）。複製したほうを開くので、日付や部屋をすぐ直せる
+function dupCard(){
+  const c = store.local.find(x=>x.id===editing.c.id); if(!c) return;
+  const n = Object.assign(JSON.parse(JSON.stringify(c)), {id:'L'+Date.now(), done:false});
+  store.local.push(n); ui.focusDay = n.date; save(); closeModal(); render(); showModal(n, false);
+  const h = document.querySelector('#modal .modal h3'); if(h) h.insertAdjacentHTML('afterend', '<div class="note" style="margin:0 0 6px">複製しました。こちらが新しいほうです。日付や部屋を直して「保存」を押してください。</div>');
 }
 function removeCard(){ store.local = store.local.filter(x=>x.id!==editing.c.id); save(); closeModal(); render(); }
 function closeModal(){ document.getElementById('modal').innerHTML = ''; editing = null; }
+// PC では、ポップアップの外側をうっかり押しても閉じないようにする（閉じるのは「閉じる／やめる」ボタンか Esc キー）。スマホは今までどおり外側を押すと閉じる
+document.addEventListener('click', e=>{ if(!isSP() && e.target && e.target.classList && e.target.classList.contains('mask')) e.stopImmediatePropagation(); }, true);
+document.addEventListener('keydown', e=>{ if(e.key!=='Escape' || ui.pv) return; const m = document.querySelector('#modal .mask'); if(!m) return; if(m.querySelector('.tpop')) tpClose(); else closeModal(); });
 function openMembers(){
   document.getElementById('modal').innerHTML = `<div class="mask" onclick="if(event.target===this)closeModal()"><div class="modal">
     <h3>メンバー（1行に1人）</h3><textarea id="f_members" rows="12">${esc(members().join('\n'))}</textarea>
@@ -1927,48 +2020,40 @@ function resetProto(){
 
 /* ---- 自動メッセージ（毎日17時に Chatwork へ。送信アカウント：システム自動送信（lvnv））
    試作では文面を作って見せるだけ。本番は GAS の時間トリガーで送る。APIトークンはスクリプトプロパティに置き、このファイルには書かない ---- */
+// 毎日17時に Chatwork「業務連絡」へ流す文面（翌日の清掃件数・行動予定・空室）。ここでは文面を作って見せるだけで、送信はしない
 const AUTO_MSG = [
-  {key:'vac', name:'空き部屋・施工情報', room:'施工関連', make:day=>msgVacancy(day)},
-  {key:'act', name:'行動予定', room:'業務連絡', make:day=>msgActs(day)},
+  {key:'next', name:'翌日の予定（清掃・行動・空室）', room:'業務連絡', make:day=>msgNext(day)},
 ];
-const msgHead = day => `${day===addDays(today(),1)?'明日 ':''}${md(day)}（${WD[wd(day)]}）`;
-// ●空き（インあり）＝その日にチェックインがある（IN前なら入れる）／○空き（インなし）＝終日空き
-function msgVacancy(day){
-  const pend = pendingByRoom(day), blocks = [];
-  const state = it => it.kind!=='teiki' ? '' : it.st==='over' ? '期限切れ' : it.st==='soon' ? 'もう直ぐ期限' : /^\d+\/\d+まで$/.test(it.why) ? '~'+it.why.replace('まで','') : it.why;
-  guestRooms().forEach(rm=>{
-    const v = vacOf(rm.facility, rm.room, day); if(v!=='free' && v!=='inb') return;
-    let items = pend[rm.facility+'|'+rm.room] || [];
-    if(v==='inb') items = items.filter(it=>!it.avoidIn);           // 当日インを避ける作業はインありの日は出さない
-    if(v==='inb' && !items.length) return;                           // インありで作業もない部屋は省く
-    const seen = new Set(), parts = [];   // 工事の残りと「ToDoリスト」で同じ作業が重なるので1つにまとめる
-    items.forEach(it=>{ const s = state(it); String(it.label).split('・').forEach(lb=>{ lb = lb.trim(); if(lb && !seen.has(lb)){ seen.add(lb); parts.push(lb + (s?`（${s}）`:'')); } }); });
-    const txt = parts.length ? parts.join('、') : '定期作業なし、空室チェック';
-    const one = guestRooms().filter(r=>r.facility===rm.facility).length===1;   // 一棟貸しは部屋番号なし
-    blocks.push(`${v==='inb'?'●':'○'}${rm.facility}${one?'':' '+rm.room}\n　${txt}`);
-  });
-  return [msgHead(day), '●空き（インあり）　○空き（インなし）　', ''].concat(blocks.length ? blocks.join('\n\n') : '作業できる空き部屋はありません').join('\n');
-}
-function msgActs(day){
-  const cl = yList(day), cards = actCards().filter(c=>c.date===day && !c.done);
-  const txt = c => uniq([c.title, c.sub].filter(Boolean)).join(' ');
-  const people = uniq(['近藤','大原','矢崎'].concat(cards.flatMap(c=>c.members||[])));
-  const L = [msgHead(day), '', `・清掃${cl.length}件`, `・当日イン${cl.filter(x=>x.s==='B'||x.s==='I').length}件`, ''];
-  people.forEach(p=>{ const mine = cards.filter(c=>(c.members||[]).includes(p)); L.push(`◼︎${p}`, ...(mine.length ? mine.map(c=>'・'+txt(c)) : ['・予定なし']), ''); });
-  const un = cards.filter(c=>!(c.members||[]).length);
-  if(un.length) L.push('◼︎未割当', ...un.map(c=>'・'+txt(c)), '');
-  return L.join('\n').replace(/\n+$/,'');
+function msgNext(day){
+  const L = [day===addDays(today(),1) ? `明日（${md(day)}）の予定` : `${mdw(day)}の予定`, ''];
+  // 清掃：空室フィードの清掃予定（施設ごと）
+  const cl = {}; let n = 0;
+  Object.keys(ROOMMAP).forEach(tag=>{ if(/[Cc]/.test(feedChar(tag, day, 'clean'))){ const f = ROOMMAP[tag].facility; cl[f] = (cl[f]||0) + 1; n++; } });
+  L.push(`◼︎清掃：${n}件${n?`（${Object.keys(cl).map(f=>f+cl[f]).join('/')}）`:''}`, '');
+  // 行動：近藤 → 大原 → 矢崎 → ほかの人。自分用メモは出さない
+  const cards = actCards().filter(c=>c.date===day && !c.done).sort((a,b)=>ORDER(a)-ORDER(b));
+  const line = c => { const pl = cardPlace(c, '') || (c.kind==='naikin' ? '内勤' : ''); return '　　' + [pl, c.sub || (pl ? '' : c.title)].filter(Boolean).join('　'); };
+  L.push('◼︎行動');
+  uniq(TANTO.concat(cards.flatMap(c=>c.members||[]))).forEach(p=>{ const mine = cards.filter(c=>(c.members||[]).includes(p)); L.push('　・'+p, ...(mine.length ? mine.map(line) : ['　　予定なし']), ''); });
+  const un = cards.filter(c=>!(c.members||[]).length); if(un.length) L.push('　・未割当', ...un.map(line), '');
+  // 空室：インあり／終日空き（施設ごとに1行）
+  const vac = {inb:{}, free:{}};
+  guestRooms().forEach(rm=>{ const v = vacOf(rm.facility, rm.room, day); if(v!=='inb' && v!=='free') return;
+    const one = guestRooms().filter(r=>r.facility===rm.facility).length===1; (vac[v][rm.facility] = vac[v][rm.facility]||[]).push(one ? rm.facility : rm.facility + rm.room); });
+  const rows = o => Object.keys(o).length ? Object.keys(o).map(f=>'　　'+o[f].join('、')) : ['　　なし'];
+  L.push('◼︎空室', '　・インあり', ...rows(vac.inb), '　', '　・終日空き', ...rows(vac.free));
+  return L.join('\n');
 }
 function sysMsg(tb){
   const t = today(), days = RANGE.filter(d=>d>t), day = ui.msgDay && days.includes(ui.msgDay) ? ui.msgDay : addDays(t,1);
   tb.className = 'toolbar';
   tb.innerHTML = `<span class="muted">文面を見る日</span><select class="btn" onchange="ui.msgDay=this.value;render()">${days.map(d=>`<option value="${d}" ${d===day?'selected':''}>${mdw(d)}${d===addDays(t,1)?'（明日）':''}</option>`).join('')}</select>`;
-  return `<div class="page"><div class="notice">試作：送られる文面を、本番のデータ（空室・定期メンテ・行動管理のタスク）から作って表示しています。ここからは送信しません。本番では毎日17時に、Chatwork の「システム自動送信（lvnv）」アカウントから自動で送ります。</div>
+  return `<div class="page"><div class="notice">毎日17時に Chatwork へ流す文面の見本です。空室・清掃予定と行動管理のタスクから作っています。ここからは送信しません（自動送信の仕組みは未作成）。</div>
     ${AUTO_MSG.map(m=>`<section class="amsg"><h2>${icon('bell',18)} ${esc(m.name)}</h2>
       <dl><dt>送信</dt><dd>毎日 17:00（翌日分）</dd><dt>送信先</dt><dd>Chatwork「${esc(m.room)}」</dd><dt>送信アカウント</dt><dd>システム自動送信（lvnv）</dd></dl>
       <pre id="msg_${m.key}">${esc(m.make(day))}</pre>
       <div class="ft"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('msg_${m.key}').textContent).then(()=>{this.textContent='コピーしました'})">📋 文面をコピー</button><span class="muted">${day===addDays(t,1)?'今日の17時に送られる内容です':'この日の前日17時に送られる内容です（その時点のデータで作り直します）'}</span></div></section>`).join('')}
-    <div class="muted">● 行動予定の人の並び：近藤・大原・矢崎（タスクがある人はその後ろに追加）。タスクがない人は「・予定なし」と出します。</div></div>`;
+    <div class="muted">● 行動の人の並び：近藤・大原・矢崎（ほかにタスクがある人はその後ろ）。タスクがない人は「予定なし」と出します。自分用メモは入りません。<br>● 自動で送る仕組みはまだ作っていません（ここに出るのは文面の見本です。コピーして貼ることはできます）。</div></div>`;
 }
 /* ===================== ホーム：ダッシュボード（2026-11-16 追加） =====================
    縦＝部屋、横＝その部屋のタスク（カード）。空室状況・次のIN・優先度をひと目で。
@@ -2004,7 +2089,7 @@ function dashRooms(day, vday){
       tasks.push({id:`rec:${x.id}`, f:rm.facility, r:rm.room, regId:x.regularId||'', kind:x.regularId?'teiki':'sekou', label:x.task, due, dueText:x.planEnd&&x.planEnd!==x.planStart?`${md(x.planStart)}〜${md(x.planEnd)}`:md(x.planStart), last:lastDoneOf(rm.facility, rm.room, x.task, x.regularId), over:due<day, who:splitPeople(x.person), src:'施工管理'});
     });
     // 行動管理のカード（この端末）
-    actCards().filter(c=>!c.done && c.facility===rm.facility && c.room===rm.room).forEach(c=>{
+    actCards().filter(c=>!c.done && cardHas(c, rm.facility, rm.room)).forEach(c=>{
       tasks.push({id:c.id, f:rm.facility, r:rm.room, regId:'', kind:c.kind, label:c.sub||KIND[c.kind], due:c.date, dueText:mdw(c.date), last:lastDoneOf(rm.facility, rm.room, c.sub), over:c.date<day, who:c.members||[], src:'行動管理', local:true, tid:c.tid||''});
     });
     tasks.forEach(t=>{ t.auto = autoPri(t, day); t.pri = dpriOf(t.id, t.auto); });
@@ -2128,6 +2213,46 @@ function tpAdd(f, r, id){
 }
 function tpUnsched(f, r, id, cardId){ store.local = store.local.filter(x=>x.id!==cardId); save(); render(); openItemPop(f, r, id); }
 function tpClose(){ closeModal(); render(); }
+/* ---- ダッシュボードでタスクを新しく作る（部屋の列の下の「＋ タスク」）
+   作ったタスクはリストの後ろに並び、ほかのタスクと同じように ON・予定・報告・定期の設定ができる。共有データ（ctasks）に保存 ---- */
+function openCTask(f, r){
+  const rs = guestRooms().filter(x=>x.facility===f).map(x=>x.room);
+  ui.ct = {f, r, rooms:[r], all:false};
+  document.getElementById('modal').innerHTML = `<div class="mask" onclick="if(event.target===this)closeModal()"><div class="modal tpop">
+    <h3>${T('タスクを追加','Add a task')}：${esc(f)}</h3>
+    <label>${T('内容（必須）','Work')}</label><input id="ct_work" placeholder="${T('例：網戸の張り替え','e.g. Replace screen')}" oninput="ctShort()">
+    <label>${T('作業箇所（任意）','Place')}</label><input id="ct_place" placeholder="${T('例：ベランダ','e.g. Balcony')}" oninput="ctShort()">
+    <label>${T('カードに出す短い名前（8文字くらいまで）','Short name')}</label><input id="ct_short" maxlength="12" oninput="this.dataset.touched=1">
+    <label>${T('対象の部屋','Rooms')}</label><div class="rchips" id="ct_rooms"></div>
+    <div class="err" id="ct_err"></div>
+    <div class="note">${FIREBASE_CONFIG ? T('足したタスクは全員の画面に出ます。','Shared with everyone.') : T('この端末にだけ保存します。','Saved on this device only.')}</div>
+    <div class="tpbar flat"><button class="btn" onclick="closeModal()">${T('やめる','Cancel')}</button><button class="btn primary" onclick="saveCTask()">${T('追加する','Add')}</button></div></div></div>`;
+  ui.ct.list = rs; ctRooms();
+}
+function ctRooms(){
+  const c = ui.ct, el = document.getElementById('ct_rooms'); if(!el) return;
+  el.innerHTML = (c.list.length>1 ? `<button type="button" class="rc all ${c.all?'on':''}" onclick="ui.ct.all=!ui.ct.all;ctRooms()">${T('全部屋','All rooms')}</button>` : '')
+    + c.list.map(x=>`<button type="button" class="rc ${!c.all && c.rooms.includes(x)?'on':''}" onclick="ctToggle(${jsq(x)})">${esc(x)}</button>`).join('');
+}
+function ctToggle(x){ const c = ui.ct; c.all = false; const i = c.rooms.indexOf(x); i>=0 ? c.rooms.splice(i,1) : c.rooms.push(x); ctRooms(); }
+function ctShort(){ const el = document.getElementById('ct_short'); if(el.dataset.touched) return; const pl = document.getElementById('ct_place').value.trim(), w = document.getElementById('ct_work').value.trim(); el.value = [pl, w].filter(Boolean).join(' ').slice(0, 8); }
+function saveCTask(){
+  const c = ui.ct, work = document.getElementById('ct_work').value.trim(), place = document.getElementById('ct_place').value.trim(), short = document.getElementById('ct_short').value.trim() || work.slice(0, 8), err = document.getElementById('ct_err');
+  if(!work){ err.textContent = T('内容を入れてください','Enter the work'); return; }
+  if(!c.all && !c.rooms.length){ err.textContent = T('対象の部屋を選んでください','Choose rooms'); return; }
+  const full = place ? place+' '+work : work, rooms = c.all ? '*' : c.list.filter(x=>c.rooms.includes(x));
+  if(rooms!=='*' ? rooms.some(x=>(roomItems(c.f, x)||[]).some(i=>i.full===full)) : c.list.some(x=>(roomItems(c.f, x)||[]).some(i=>i.full===full))){ err.textContent = T('同じ作業箇所・内容のタスクがもうあります','This task already exists'); return; }
+  const id = 'C'+Date.now();
+  (store.ctasks = store.ctasks || {})[id] = {id, f:c.f, rooms, short, place, work, by:store.me||'', at:today()};
+  clearItemCache(); save(); closeModal(); render();
+}
+function delCTask(cid){
+  const ct = (store.ctasks||{})[cid]; if(!ct) return;
+  if(!window.confirm(`「${ct.short}」を消しますか？\n${ct.rooms==='*' ? ct.f+'の全部屋' : ct.f+' '+ct.rooms.join('・')} から消えます。（施工管理に保存した報告は消えません）`)) return;
+  delete store.ctasks[cid];
+  ['ton','tnote','tfreq'].forEach(g=> Object.keys(store[g]||{}).forEach(k=>{ if(k.endsWith(':＋'+cid)) delete store[g][k]; }));
+  clearItemCache(); save(); closeModal(); render();
+}
 function openItemPop(f, r, id){
   const it = (roomItems(f, r)||[]).find(i=>i.id===id); if(!it) return;
   const hist = itemRecs(f, r, it), on = tOn(id), sch = tSched(id), t = today();
@@ -2160,6 +2285,7 @@ function openItemPop(f, r, id){
     <div class="tph">${T('備考（注意点など）','Notes')}</div>
     <textarea id="tp_note" rows="3" placeholder="${T('例：家具の移動が必要／鍵は事務所／写真を撮ってから作業','Notes')}" oninput="tpNote(${jsq(id)},this.value)">${esc(tNote(id))}</textarea>
     <div class="muted" style="font-size:12px;margin-top:3px">${FIREBASE_CONFIG ? T('入力するとそのまま保存され、全員に共有されます。','Saved and shared.') : T('入力するとそのまま保存されます。ON・予定・備考は、この端末の中だけに保存します。','Saved on this device only.')}</div>
+    ${it.custom?`<div class="note">${T('アプリで足したタスクです。','Added in the app.')}<button class="btn danger" style="margin-left:8px;padding:2px 10px" onclick="delCTask(${jsq(it.custom)})">${T('このタスクを消す','Delete this task')}</button></div>`:''}
     <div class="tpbar flat"><button class="btn" onclick="tpClose()">${T('閉じる','Close')}</button><button class="btn primary" onclick="openReport(${jsq(f)},${jsq(r)},${jsq(id)})">${T('報告する','Report')}</button></div></div></div>`;
   tpVac(f, r);
 }
@@ -2343,7 +2469,7 @@ function openRepPicker(){
   if(k.f && rms.length===1) k.r = rms[0];
   const its = k.f && k.r ? (roomItems(k.f, k.r)||[]) : [];
   const ons = dashRooms(t).flatMap(r=>r.tasks.filter(x=>tOn(x.id))).slice(0, 12);
-  const mine = store.local.filter(c=>!c.done && c.date<=t).sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 12);
+  const mine = store.local.filter(c=>!c.done && c.date<=t && isMine(c)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 12);
   document.getElementById('modal').innerHTML = `<div class="mask" onclick="if(event.target===this)closeModal()"><div class="modal tpop">
     <h3>${T('報告するタスクを選ぶ','Choose a task to report')}</h3>
     ${mine.length?`<div class="tph">${T('今日までの予定（行動管理）','Scheduled')}</div><div class="rpk">${mine.map(c=>`<button class="btn" onclick="repFromCard(${jsq(c.id)})"><b>${esc(c.facility?rmName(c.facility, c.room):c.title)}</b>${esc(c.sub||KIND[c.kind])}<small>${md(c.date)}${(c.members||[]).length?' '+esc(c.members.join('・')):''}</small></button>`).join('')}</div>`:''}
@@ -2446,7 +2572,18 @@ function dashToggle(f){
   if(s1 && sec1 && rel!==null){ s1.scrollLeft = sec1.offsetLeft - rel; ui.dash.sl = s1.scrollLeft; }
 }
 // 施設を横に並べたとき：横スクロールの位置を描き直しても保つ
+// PC：横スクロールのバーが下に隠れて使いにくいので、同じバーを上（画面の上に張りつく位置）にも出す
+function topScrollBar(target){
+  document.querySelectorAll('.hsb').forEach(x=>x.remove());
+  if(!target || isSP() || target.scrollWidth <= target.clientWidth + 2) return;
+  const bar = document.createElement('div'); bar.className = 'hsb'; bar.innerHTML = `<div style="width:${target.scrollWidth}px"></div>`;
+  const tp = document.querySelector('.top'); bar.style.top = (tp ? tp.offsetHeight : 50) + 'px';
+  target.parentNode.insertBefore(bar, target); bar.scrollLeft = target.scrollLeft;
+  let lock = false; const link = (a, b)=> a.addEventListener('scroll', ()=>{ if(lock) return; lock = true; b.scrollLeft = a.scrollLeft; requestAnimationFrame(()=>{ lock = false; }); }, {passive:true});
+  link(bar, target); link(target, bar);
+}
 function afterDash(){
+  setTimeout(()=> topScrollBar(document.querySelector('.dfstrip') || document.querySelector('.dcols.dtk') || document.querySelector('.drows')), 0);
   // 縦並び：どの施設を横に動かしても、全施設が一緒に動くようにそろえる（幅もいちばん長い施設に合わせる）
   const rw = [...document.querySelectorAll('.drows')];
   if(rw.length){
@@ -2492,13 +2629,13 @@ const dashRoomHead = r => `<div class="rm" onclick="openRoomPop(${jsq(r.rm.facil
 function dashCols(rows){
   if(!rows.length) return `<div class="status">${T('該当する部屋がありません','No rooms')}</div>`;
   return facGroups(rows, rs=>`<div class="dcols">${rs.map(r=>`<div class="dcol p${r.top}" id="dr_${esc(r.key)}">${dashRoomHead(r)}${vacBand(r.vac)}</div>
-    <div class="tk">${dashCards(r).map(t=>dcardHtml(t)).join('') || `<span class="none">${T('タスクなし','No tasks')}</span>`}</div></div>`).join('')}</div>`, true);
+    <div class="tk">${dashCards(r).map(t=>dcardHtml(t)).join('') || `<span class="none">${T('タスクなし','No tasks')}</span>`}<button class="addtk" onclick="openCTask(${jsq(r.rm.facility)},${jsq(r.rm.room)})">＋ ${T('タスク','Task')}</button></div></div>`).join('')}</div>`, true);
 }
 function dashRows(rows){
   if(!rows.length) return `<div class="status">${T('該当する部屋がありません','No rooms')}</div>`;
   return facGroups(rows, rs=>`<div class="drows">${rs.map(r=>`<div class="drow p${r.top}" id="dr_${esc(r.key)}">${dashRoomHead(r)}
       <div class="vac">${vacBand(r.vac)}</div></div>
-    <div class="tk">${dashCards(r).map(t=>dcardHtml(t)).join('') || `<span class="none">${T('タスクなし','No tasks')}</span>`}</div></div>`).join('')}</div>`);
+    <div class="tk">${dashCards(r).map(t=>dcardHtml(t)).join('') || `<span class="none">${T('タスクなし','No tasks')}</span>`}<button class="addtk" onclick="openCTask(${jsq(r.rm.facility)},${jsq(r.rm.room)})">＋ ${T('タスク','Task')}</button></div></div>`).join('')}</div>`);
 }
 // タスク毎：施設名のかわりにタスク名（エアコン・壁紙 など）でまとめる。中は前回の日付が古い順（記録なしが一番上）
 const taskGroupOf = t => t.item ? (t.item.fam ? t.short.split(' ').pop() : t.short) : t.label;
