@@ -579,6 +579,7 @@ body.actbg .toolbar{border-bottom-color:#eceef1}
 /* 行動管理のカード：名前は正円のアイコン風 */
 .card .cw{max-width:none}
 .card .cw .av{width:34px;height:34px;min-width:34px;max-width:34px;padding:0;border-radius:50%;justify-content:center;text-align:center;font-size:12px;font-weight:600;line-height:1;letter-spacing:0;overflow:hidden;white-space:nowrap;text-overflow:clip;box-sizing:border-box}
+.card .cw .av.cln{border-style:solid;border-color:#c9d6f2;background:#eef3fc;color:#3b5aa6}
 .card .cw .av.l3{font-size:10px}.card .cw .av.l4{font-size:8.5px}
 .av.none{background:#fff;color:#6b7280;border:1px dashed #c4c9d2;font-weight:500}
 .addbtn{color:#6b7280;font-size:14px}
@@ -1084,7 +1085,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "948790602582",
   appId: "1:948790602582:web:89ce55182c015d812384f7"
 };
-const APP_VER = '11/27 13:48';   // 公開用を作るときに日時が入る。左メニューの下に出るので、どの版が載っているか見分けられる
+const APP_VER = '11/27 14:45';   // 公開用を作るときに日時が入る。左メニューの下に出るので、どの版が載っているか見分けられる
 const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const FB = {on:false, user:null, db:null, shadow:null, timer:0, ready:false};
 const fbEnc = k => encodeURIComponent(k).replace(/\./g, '%2E');
@@ -1713,7 +1714,8 @@ const PERSON_COLOR = {"近藤":"#2f6fd6", "大原":"#e8762c", "矢崎":"#2e9d5b"
 const pcol = m => PERSON_COLOR[m] || "#8a94a6";
 const pav = m => `<span class="av pc l${Math.min(4, [...String(m)].length)}" style="background:${pcol(m)}" title="${esc(m)}">${esc(m)}</span>`;
 function cardHtml(c){
-  const mem = (c.members||[]).length ? c.members.map(pav).join('') : `<span class="av none l3">未割当</span>`;
+  // 清掃予定（参考）は、担当者のデータをこのアプリが持っていないだけなので「未割当」とは出さない
+  const mem = (c.members||[]).length ? c.members.map(pav).join('') : (c.ref && c.kind==='clean') ? `<span class="av none cln">清掃</span>` : `<span class="av none l3">未割当</span>`;
   const tags = (c.tags||[]).concat(c.priv ? ['自分のみ'] : []).map(t=>`<span class="tag ${t.includes('当日イン')?'in':''}">${esc(t)}</span>`).join('');
   // コンパクト：左に担当、右に「場所」と「種類・やること」を2行で
   return `<div class="card k-${c.kind} ${c.done?'done':''} ${c.ref?'ref':''}" style="--k:${(c.members||[]).length?pcol(c.members[0]):'#c4c9d2'}" ${c.ref?'':`draggable="true" onclick="openCard('${esc(c.id)}')"`} data-id="${esc(c.id)}">
